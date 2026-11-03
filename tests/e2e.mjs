@@ -224,7 +224,8 @@ try {
   const recoveryContext = await browser.newContext();
   const recoveryPage = await recoveryContext.newPage();
   recoveryPage.on("pageerror", (e) => failures.push(e.message));
-  await recoveryPage.goto(await mailboxLink("verify"));
+  const verificationLink = await mailboxLink("verify");
+  await recoveryPage.goto(verificationLink);
   await recoveryPage
     .getByRole("button", { name: "Confirmer mon adresse", exact: true })
     .click();
@@ -232,6 +233,13 @@ try {
     .getByText("Adresse email vérifiée.", { exact: false })
     .waitFor();
   assert.equal(new URL(recoveryPage.url()).hash, "");
+  await recoveryPage.goto(verificationLink);
+  await recoveryPage
+    .getByRole("button", { name: "Confirmer mon adresse", exact: true })
+    .click();
+  await recoveryPage
+    .getByText("Lien expiré, remplacé ou déjà utilisé.", { exact: false })
+    .waitFor();
   await recoveryPage
     .getByRole("button", { name: "Retour à la connexion", exact: true })
     .click();

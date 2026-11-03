@@ -64,7 +64,9 @@ export default function Page() {
   const [accountAction, setAccountAction] = useState<{
     kind: "request" | "reset" | "verify";
     token?: string;
+    opened?: number;
   } | null>(null);
+  const accountLinkEpoch = useRef(0);
   const [me, setMe] = useState<Row | null>(null),
     [tenant, setTenant] = useState(""),
     [csrf, setCsrf] = useState(""),
@@ -167,6 +169,7 @@ export default function Page() {
         setAccountAction({
           kind: match[1] as "reset" | "verify",
           token: match[2],
+          opened: ++accountLinkEpoch.current,
         });
         window.history.replaceState(
           null,
@@ -421,7 +424,11 @@ export default function Page() {
   if (accountAction)
     return (
       <AccountRecovery
-        key={accountAction.kind + (accountAction.token || "")}
+        key={
+          accountAction.kind +
+          (accountAction.token || "") +
+          accountAction.opened
+        }
         {...accountAction}
         close={() => window.location.assign("/")}
       />
