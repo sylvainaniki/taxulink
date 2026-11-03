@@ -1633,6 +1633,31 @@ export default function WorkspacePanels(p: Props) {
             Pour utiliser de vraies données, l’identité, l’hébergement et les
             obligations documentaires doivent être validés.
           </p>
+          <h3>Adresse email</h3>
+          <p>
+            {data["/auth/me"]?.email_verified
+              ? "Adresse vérifiée."
+              : "Adresse non vérifiée."}
+          </p>
+          {data["/auth/me"]?.email_available &&
+            !data["/auth/me"]?.email_verified && (
+              <button
+                disabled={busy}
+                onClick={() =>
+                  run(
+                    () => post("/auth/email/request", {}),
+                    "Si nécessaire, un lien de confirmation sera envoyé à votre adresse.",
+                  )
+                }
+              >
+                Envoyer le lien de confirmation
+              </button>
+            )}
+          {!data["/auth/me"]?.email_available && (
+            <p className="hint">
+              L’envoi d’email n’est pas configuré sur cette installation.
+            </p>
+          )}
           <h3>Double authentification</h3>
           <p>
             {data["/auth/me"]?.mfa_enabled

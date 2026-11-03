@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs";
 import { z } from "zod";
 import * as models from "./index";
 import * as extended from "./extended";
+import * as account from "./account";
 const schemas: Record<string, any> = {};
 for (const name of [
   "loginInput",
@@ -19,7 +20,7 @@ for (const name of [
   delete json.$schema;
   schemas[name] = json;
 }
-for (const [name, schema] of Object.entries(extended)) {
+for (const [name, schema] of Object.entries({ ...extended, ...account })) {
   const json = z.toJSONSchema(schema);
   delete json.$schema;
   schemas[name] = json;
@@ -146,6 +147,44 @@ add(
   true,
 );
 add("/auth/me", "get", "Compte, memberships actifs et jeton CSRF");
+add(
+  "/auth/password/request",
+  "post",
+  "Demander un lien de récupération, réponse uniforme",
+  "accountEmailInput",
+  true,
+);
+add(
+  "/auth/password/reset",
+  "post",
+  "Changer le mot de passe par lien et MFA, révoquer les sessions",
+  "resetPasswordInput",
+  true,
+);
+add(
+  "/auth/email/request",
+  "post",
+  "Renvoyer la vérification de l’adresse email",
+);
+add(
+  "/auth/email/verify",
+  "post",
+  "Vérifier l’adresse par lien à usage unique",
+  "accountTokenInput",
+  true,
+);
+for (const path of [
+  "/auth/password/request",
+  "/auth/password/reset",
+  "/auth/email/request",
+  "/auth/email/verify",
+]) {
+  paths[path].post.responses["200"] = paths[path].post.responses["201"];
+  delete paths[path].post.responses["201"];
+  paths[path].post.responses["503"] = {
+    description: "Envoi d’email non configuré",
+  };
+}
 add("/auth/logout", "post", "Révoquer la session courante");
 add("/locations", "get", "Catalogue des lieux fictifs");
 add("/drivers", "get", "Chauffeurs autorisés");

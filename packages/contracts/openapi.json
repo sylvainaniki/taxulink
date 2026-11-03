@@ -218,6 +218,255 @@
         }
       }
     },
+    "/auth/password/request": {
+      "post": {
+        "summary": "Demander un lien de récupération, réponse uniforme",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          },
+          "503": {
+            "description": "Envoi d’email non configuré"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/accountEmailInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password/reset": {
+      "post": {
+        "summary": "Changer le mot de passe par lien et MFA, révoquer les sessions",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          },
+          "503": {
+            "description": "Envoi d’email non configuré"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/resetPasswordInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/email/request": {
+      "post": {
+        "summary": "Renvoyer la vérification de l’adresse email",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          },
+          "503": {
+            "description": "Envoi d’email non configuré"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "maxProperties": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/email/verify": {
+      "post": {
+        "summary": "Vérifier l’adresse par lien à usage unique",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          },
+          "503": {
+            "description": "Envoi d’email non configuré"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/accountTokenInput"
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/logout": {
       "post": {
         "summary": "Révoquer la session courante",
@@ -7204,6 +7453,54 @@
           }
         },
         "required": ["version"],
+        "additionalProperties": false
+      },
+      "accountEmailInput": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          }
+        },
+        "required": ["email"],
+        "additionalProperties": false
+      },
+      "accountTokenInput": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": ["token"],
+        "additionalProperties": false
+      },
+      "resetPasswordInput": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128
+          },
+          "mfa_code": {
+            "type": "string",
+            "pattern": "^\\d{6}$"
+          },
+          "recovery_code": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": ["token", "password"],
         "additionalProperties": false
       },
       "Error": {

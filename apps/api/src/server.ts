@@ -16,6 +16,8 @@ import {
 import { validateAssignment } from "./planning";
 import * as input from "../../../packages/contracts";
 import { operations } from "./modules/operations";
+import { accountRoutes } from "./modules/account";
+import { enqueueAccountLink, type AccountMail } from "./mail";
 import {
   newSecret,
   encryptSecret,
@@ -31,6 +33,8 @@ export interface Options {
   authLimit?: number;
   webOrigin?: string;
   secureCookies?: boolean;
+  mail?: AccountMail;
+  requireVerifiedEmail?: boolean;
 }
 const dummyPassword = passwordHash("dummy-password-never-accepted");
 export async function createApp(
@@ -119,6 +123,18 @@ export async function createApp(
     if (req.method === "GET" && path === "/health")
       return res.json({ status: "ok", demo: options.demo, documents: false });
     if (
+      [
+        "/auth/password/request",
+        "/auth/password/reset",
+        "/auth/email/request",
+        "/auth/email/verify",
+      ].includes(path)
+    ) {
+      limited(req);
+      if (await accountRoutes(req, res, path, identity, options, session))
+        return;
+    }
+    if (
       req.method === "POST" &&
       (path === "/auth/register" ||
         path === "/auth/login" ||
@@ -157,6 +173,13 @@ export async function createApp(
             [tenant, user],
           );
           await audit(q, tenant, user, "tenant.created", tenant);
+          if (options.mail)
+            await enqueueAccountLink(
+              q,
+              options.mail,
+              { id: user, email: data.email.toLowerCase() },
+              "verify",
+            );
           return issueSession(q, user);
         });
         setCookie(res, result.raw, 8 * 3600);
@@ -202,13 +225,16 @@ export async function createApp(
       ).rows;
       const mfa = (
         await identity.query(
-          "SELECT mfa_secret IS NOT NULL AS enabled FROM users WHERE id=$1",
+          "SELECT mfa_secret IS NOT NULL AS enabled,email_verified_at FROM users WHERE id=$1",
           [s.user_id],
         )
       ).rows[0];
       return res.json({
         mfa_enabled: mfa.enabled,
         mfa_available: validMfaKey(options.mfaKey),
+        email_verified: Boolean(mfa.email_verified_at),
+        email_available: Boolean(options.mail),
+        email_verification_required: Boolean(options.requireVerifiedEmail),
         id: s.user_id,
         email: s.email,
         csrf: s.csrf,
@@ -427,6 +453,11 @@ export async function createApp(
       ).rows[0].data;
       requireThat(s, 401, "SESSION_REQUIRED");
       requireThat(s.role, 403, "ACCESS_DENIED");
+      requireThat(
+        !options.requireVerifiedEmail || s.email_verified,
+        403,
+        "EMAIL_VERIFICATION_REQUIRED",
+      );
       const role = s.role;
       if (write)
         requireThat(req.headers["x-csrf-token"] === s.csrf, 403, "CSRF_DENIED");

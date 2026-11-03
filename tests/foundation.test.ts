@@ -1590,3 +1590,308 @@ test("authentication rate limiting rejects repeated guesses", async () => {
     await limited.close();
   }
 });
+
+async function accountFixture(requireVerifiedEmail = false) {
+  const { deliverAccountMail } = await import("../apps/api/src/mail.js");
+  await db.query("DELETE FROM account_links");
+  const sent: { to: string; subject: string; text: string }[] = [];
+  let failDelivery = false;
+  const mail = {
+    key: "22".repeat(32),
+    origin: "http://localhost:3000",
+    send: async (message: any) => {
+      if (failDelivery) throw new Error("Synthetic delivery outage");
+      sent.push(message);
+    },
+  };
+  const identity = asRole(db, "taxilink_identity");
+  const service = await createApp(
+    db,
+    {
+      demo: true,
+      mfaKey: "11".repeat(32),
+      authLimit: 100,
+      mail,
+      requireVerifiedEmail,
+    },
+    identity,
+  );
+  let cookie = "",
+    csrf = "",
+    tenant = "";
+  async function call(path: string, body?: any, authenticated = true) {
+    const result = await inject(service.getHttpAdapter().getInstance(), {
+      method: body === undefined ? "GET" : "POST",
+      url: "/api/v1" + path,
+      headers: {
+        "content-type": "application/json",
+        ...(authenticated
+          ? { cookie, "x-csrf-token": csrf, "x-tenant-id": tenant }
+          : {}),
+      },
+      ...(body === undefined ? {} : { payload: body }),
+    });
+    return {
+      status: result.statusCode,
+      body: result.json(),
+      headers: result.headers,
+    };
+  }
+  const email = `recovery-${randomUUID()}@example.test`;
+  const created = await call(
+    "/auth/register",
+    { email, password, company: "Fictive recovery test" },
+    false,
+  );
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  cookie = String(created.headers["set-cookie"]).split(";")[0];
+  csrf = created.body.csrf;
+  tenant = created.body.tenant_id;
+  return {
+    service,
+    call,
+    email,
+    sent,
+    identity,
+    mail,
+    drain: async () => {
+      for (
+        let i = 0;
+        i < 10 && (await deliverAccountMail(identity, mail));
+        i++
+      );
+    },
+    setFailure: (v: boolean) => {
+      failDelivery = v;
+    },
+  };
+}
+function linkToken(messages: { text: string }[], purpose: string) {
+  const message = messages.find((m) => m.text.includes(`#${purpose}=`));
+  assert.ok(message);
+  return message.text.match(new RegExp(`#${purpose}=([a-f0-9]{64})`))![1];
+}
+
+test("email verification enforces the optional access policy, authenticates ownership once and keeps the queue encrypted", async () => {
+  const f = await accountFixture(true);
+  try {
+    const me = await f.call("/auth/me");
+    assert.equal(me.body.email_verified, false);
+    assert.equal(me.body.email_available, true);
+    assert.equal(
+      (await f.call("/courses")).body.code,
+      "EMAIL_VERIFICATION_REQUIRED",
+    );
+    assert.equal((await f.call("/auth/email/request", {}, false)).status, 401);
+    assert.equal((await f.call("/auth/email/request", {})).status, 200);
+    assert.equal(
+      (await db.query("SELECT * FROM account_links")).rows.length,
+      1,
+    );
+    await f.drain();
+    const raw = linkToken(f.sent, "verify");
+    const links = (await db.query("SELECT * FROM account_links")).rows;
+    assert.ok(!JSON.stringify(links).includes(raw));
+    assert.equal(
+      (await db.query("SELECT encrypted_payload FROM account_mail")).rows[0]
+        .encrypted_payload,
+      "",
+    );
+    assert.equal(
+      (await f.call("/auth/email/verify", { token: raw }, false)).status,
+      200,
+    );
+    assert.equal(
+      (await f.call("/auth/email/verify", { token: raw }, false)).body.code,
+      "ACCOUNT_LINK_INVALID",
+    );
+    assert.equal((await f.call("/auth/me")).body.email_verified, true);
+    assert.equal((await f.call("/courses")).status, 200);
+  } finally {
+    await f.service.close();
+  }
+});
+
+test("password requests never disclose accounts, are throttled by recipient and store no raw links", async () => {
+  const f = await accountFixture();
+  try {
+    const missing = await f.call(
+      "/auth/password/request",
+      { email: "missing@example.test" },
+      false,
+    );
+    const known = await f.call(
+      "/auth/password/request",
+      { email: f.email },
+      false,
+    );
+    assert.equal(missing.status, known.status);
+    assert.deepEqual(missing.body, known.body);
+    const queued = (await db.query("SELECT * FROM account_mail")).rows;
+    assert.equal(queued.length, 2);
+    assert.ok(!JSON.stringify(queued).includes(f.email));
+    await f.call("/auth/password/request", { email: f.email }, false);
+    assert.equal((await db.query("SELECT * FROM account_mail")).rows.length, 2);
+    await assert.rejects(
+      asRole(db, "taxilink_app").query("SELECT * FROM account_links"),
+      /permission denied/,
+    );
+    await assert.rejects(
+      asRole(db, "taxilink_app").query("SELECT * FROM account_mail"),
+      /permission denied/,
+    );
+    await f.drain();
+    const raw = linkToken(f.sent, "reset");
+    assert.ok(
+      !JSON.stringify(
+        (await db.query("SELECT * FROM account_links")).rows,
+      ).includes(raw),
+    );
+    assert.equal(
+      (
+        await f.call(
+          "/auth/password/reset",
+          { token: raw, password: "too-short" },
+          false,
+        )
+      ).status,
+      400,
+    );
+    const changed = await Promise.all(
+      [0, 1].map(() =>
+        f.call(
+          "/auth/password/reset",
+          { token: raw, password: "Replacement-synthetic-password-2026" },
+          false,
+        ),
+      ),
+    );
+    assert.deepEqual(changed.map((r) => r.status).sort(), [200, 400]);
+    assert.equal((await f.call("/auth/me")).status, 401);
+    assert.equal(
+      (await f.call("/auth/login", { email: f.email, password }, false)).status,
+      401,
+    );
+    assert.equal(
+      (
+        await f.call(
+          "/auth/login",
+          { email: f.email, password: "Replacement-synthetic-password-2026" },
+          false,
+        )
+      ).status,
+      200,
+    );
+  } finally {
+    await f.service.close();
+  }
+});
+
+test("expired and replaced recovery links are refused and mail delivery retries without exposing payloads", async () => {
+  const f = await accountFixture();
+  try {
+    await f.call("/auth/password/request", { email: f.email }, false);
+    await f.drain();
+    const old = linkToken(f.sent, "reset");
+    await db.query(
+      "UPDATE account_links SET expires_at=now()-interval '1 minute',created_at=now()-interval '2 minutes' WHERE purpose='reset'",
+    );
+    assert.equal(
+      (
+        await f.call(
+          "/auth/password/reset",
+          { token: old, password: "Replacement-synthetic-password-2026" },
+          false,
+        )
+      ).body.code,
+      "ACCOUNT_LINK_INVALID",
+    );
+    await f.call("/auth/password/request", { email: f.email }, false);
+    assert.equal(
+      (
+        await f.call(
+          "/auth/password/reset",
+          { token: old, password: "Replacement-synthetic-password-2026" },
+          false,
+        )
+      ).status,
+      400,
+    );
+    f.setFailure(true);
+    await f.drain();
+    const pending = (
+      await db.query("SELECT * FROM account_mail WHERE sent_at IS NULL")
+    ).rows;
+    assert.equal(pending[0].attempts, 1);
+    assert.ok(pending[0].encrypted_payload.length > 100);
+    await db.query(
+      "UPDATE account_mail SET next_attempt=now() WHERE sent_at IS NULL",
+    );
+    f.setFailure(false);
+    await f.drain();
+    assert.equal(f.sent.filter((m) => m.text.includes("#reset=")).length, 2);
+  } finally {
+    await f.service.close();
+  }
+});
+
+test("recovery cannot bypass MFA and consumes a single-use factor while revoking sessions", async () => {
+  const f = await accountFixture();
+  try {
+    const { encryptSecret, newSecret, recoveryCodes } = await import(
+      "../apps/api/src/mfa.js"
+    );
+    const recovery = recoveryCodes();
+    const { hash } = await import("../apps/api/src/security.js");
+    const user = (
+      await db.query("SELECT id FROM users WHERE email=$1", [f.email])
+    ).rows[0];
+    await db.query(
+      "UPDATE users SET mfa_secret=$1,recovery_hashes=$2 WHERE id=$3",
+      [
+        encryptSecret(newSecret(), "11".repeat(32)),
+        JSON.stringify(recovery.map((code) => hash(code.replace(/-/g, "")))),
+        user.id,
+      ],
+    );
+    await f.call("/auth/password/request", { email: f.email }, false);
+    await f.drain();
+    const raw = linkToken(f.sent, "reset"),
+      body = { token: raw, password: "Recovered-synthetic-password-2026" };
+    assert.equal(
+      (await f.call("/auth/password/reset", body, false)).body.code,
+      "MFA_REQUIRED",
+    );
+    assert.equal(
+      (
+        await f.call(
+          "/auth/password/reset",
+          { ...body, recovery_code: "FFFFFFFF-FFFFFFFF" },
+          false,
+        )
+      ).body.code,
+      "MFA_INVALID",
+    );
+    assert.equal(
+      (
+        await f.call(
+          "/auth/password/reset",
+          { ...body, recovery_code: recovery[0] },
+          false,
+        )
+      ).status,
+      200,
+    );
+    assert.equal((await f.call("/auth/me")).status, 401);
+    const after = (
+      await db.query(
+        "SELECT mfa_secret,recovery_hashes FROM users WHERE id=$1",
+        [user.id],
+      )
+    ).rows[0];
+    assert.ok(after.mfa_secret);
+    assert.equal(after.recovery_hashes.length, 7);
+  } finally {
+    await f.service.close();
+  }
+});

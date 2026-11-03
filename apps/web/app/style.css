@@ -1168,3 +1168,14 @@ details[open] > summary {
     overflow-wrap: anywhere;
   }
 }
+.account-recovery {
+  max-width: 560px;
+  margin: 8vh auto;
+}
+.account-recovery form {
+  display: grid;
+  gap: 16px;
+}
+.account-recovery > button {
+  margin-top: 16px;
+}

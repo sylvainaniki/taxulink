@@ -1,4 +1,9 @@
 services:
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    ports: ['127.0.0.1:8025:8025']
+    environment:
+      MP_MAX_MESSAGES: 200
   db:
     image: postgres:16-bookworm
     environment:
@@ -30,10 +35,16 @@ services:
       DATABASE_URL: postgresql://taxilink_api:${API_DB_PASSWORD}@db:5432/taxilink
       AUTH_DATABASE_URL: postgresql://taxilink_auth:${AUTH_DB_PASSWORD}@db:5432/taxilink
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Set a 64-hex-character MFA_ENCRYPTION_KEY}
+      MAIL_ENCRYPTION_KEY: ${MAIL_ENCRYPTION_KEY:?Set a 64-hex-character MAIL_ENCRYPTION_KEY}
+      SMTP_HOST: mailpit
+      SMTP_PORT: '1025'
+      SMTP_FROM: demo@taxilink.example
+      SMTP_ALLOW_INSECURE: 'true'
       WEB_ORIGIN: http://localhost:3000
       REAL_SENSITIVE_DOCUMENTS_ENABLED: 'false'
     ports: ['127.0.0.1:4000:4000']
     depends_on:
+      mailpit: {condition: service_started}
       migrate: {condition: service_completed_successfully}
     healthcheck:
       test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4000/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]

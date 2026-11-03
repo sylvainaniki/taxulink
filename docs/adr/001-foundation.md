@@ -30,7 +30,7 @@ Un retard crée une alerte et informe le propriétaire d’une mission partagée
 
 Sessions opaques 256 bits, hash en base, cookies HttpOnly/SameSite Strict sur web, bearer conservé dans SecureStore sur mobile, CSRF et Origin contrôlés, mots de passe scrypt, limitation des tentatives. TOTP RFC 6238, graines chiffrées AES-256-GCM avec clé distincte de la base, compteurs anti-rejeu, codes de récupération hashés à usage unique. L’activation demande le mot de passe et une preuve TOTP, ferme les autres sessions ; désactivation/changement de mot de passe ferment toutes les sessions.
 
-`setup` crée une configuration privée sans écraser l’existant. Les secrets, clés de signature, sauvegardes et documents source ne sont pas commités. La production requiert HTTPS, une gestion de secrets et une limitation distribuée ; l’email vérifié et la récupération par canal délivré restent à intégrer.
+`setup` crée une configuration privée sans écraser l’existant. Les secrets, clés de signature, sauvegardes et documents source ne sont pas commités. La production requiert HTTPS, une gestion de secrets et une limitation distribuée ; les parcours de vérification et de récupération utilisent une file SMTP chiffrée. Les jetons sont hashés, expirent à 30 minutes, restent à usage unique, ne contournent pas la MFA et ne sont pas restaurés depuis les sauvegardes. Mailpit capture les emails de démonstration ; SMTP externe et délivrabilité restent à configurer/qualifier. La politique optionnelle REQUIRE_VERIFIED_EMAIL protège les routes métier.
 
 ## 006 — Sauvegarde et périmètre
 

@@ -196,6 +196,78 @@ try {
     path: ".data/qa/network-chat-mobile.png",
     fullPage: true,
   });
+  async function mailboxLink(kind) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const response = await fetch(
+        "http://localhost:8025/api/v1/message/latest",
+      );
+      if (response.ok) {
+        const message = await response.json();
+        const link = message.Text?.match(
+          new RegExp(`http://localhost:3000/#${kind}=[a-f0-9]{64}`),
+        )?.[0];
+        if (link) return link;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    throw new Error(
+      "Expected account email was not delivered to the local test mailbox",
+    );
+  }
+  await owner.getByRole("button", { name: "Compte", exact: false }).click();
+  await owner
+    .getByRole("button", {
+      name: "Envoyer le lien de confirmation",
+      exact: true,
+    })
+    .click();
+  const recoveryContext = await browser.newContext();
+  const recoveryPage = await recoveryContext.newPage();
+  recoveryPage.on("pageerror", (e) => failures.push(e.message));
+  await recoveryPage.goto(await mailboxLink("verify"));
+  await recoveryPage
+    .getByRole("button", { name: "Confirmer mon adresse", exact: true })
+    .click();
+  await recoveryPage
+    .getByText("Adresse email vérifiée.", { exact: false })
+    .waitFor();
+  assert.equal(new URL(recoveryPage.url()).hash, "");
+  await recoveryPage
+    .getByRole("button", { name: "Retour à la connexion", exact: true })
+    .click();
+  await recoveryPage
+    .getByRole("button", { name: "Mot de passe oublié", exact: true })
+    .click();
+  await recoveryPage.getByLabel("Adresse email").fill("admin@atlas.example");
+  await recoveryPage
+    .getByRole("button", { name: "Envoyer le lien", exact: true })
+    .click();
+  await recoveryPage
+    .getByText("Si un compte correspond", { exact: false })
+    .waitFor();
+  await recoveryPage.goto(await mailboxLink("reset"));
+  await recoveryPage
+    .getByLabel("Nouveau mot de passe", { exact: true })
+    .fill("E2E-recovered-synthetic-password-2026");
+  await recoveryPage
+    .getByRole("button", { name: "Enregistrer le mot de passe", exact: true })
+    .click();
+  await recoveryPage
+    .getByText("Mot de passe modifié.", { exact: false })
+    .waitFor();
+  await recoveryPage
+    .getByRole("button", { name: "Retour à la connexion", exact: true })
+    .click();
+  await recoveryPage
+    .getByLabel("Mot de passe", { exact: true })
+    .fill("E2E-recovered-synthetic-password-2026");
+  await recoveryPage
+    .getByRole("button", { name: "Ouvrir mon espace", exact: false })
+    .click();
+  await recoveryPage
+    .getByRole("heading", { name: "Une journée bien coordonnée." })
+    .waitFor();
+  await recoveryContext.close();
   assert.deepEqual(failures, []);
   console.log(
     "E2E passed: login, tenant boundary, create/assign/complete, mobile overflow, logout, driver role, private marketplace/owner confirmation, cross-company group chat, proposal/apply planning.",

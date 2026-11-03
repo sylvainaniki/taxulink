@@ -35,6 +35,7 @@ Les comptes utilisent le `DEMO_PASSWORD` choisi lors du premier seed. Un chauffe
 ## Fonctions disponibles
 
 - Connexion, entreprises, invitations temporaires, rôles, révocation des accès et changement de mot de passe.
+- Vérification d’email et récupération de mot de passe par liens temporaires, avec maintien de la MFA, révocation des sessions et file SMTP chiffrée avec reprise sur échec.
 - Double authentification TOTP : activation vérifiée, secrets chiffrés, protection contre la réutilisation d’un code, codes de récupération à usage unique, révocation des autres sessions.
 - Chauffeurs, association à un compte utilisateur, véhicules, services sur plusieurs journées, pauses et contrôles des engagements avant modification.
 - Fiches de clients/patients **fictifs**, établissements et partenaires, liées aux courses sans diagnostic.
@@ -69,6 +70,18 @@ docker compose up --build
 La configuration générée par `npm run setup` fournit les secrets nécessaires. Un conteneur de migration provisionne les rôles puis quitte ; le conteneur API ne reçoit pas le mot de passe propriétaire. Les ports sont exposés sur `127.0.0.1` uniquement. La CI vérifie le démarrage complet de Compose, les contrôles de santé et une connexion à travers le proxy web, ainsi que PostgreSQL 16 et les deux identités réseau restreintes.
 
 Pour un PostgreSQL géré sans Compose, configurer `MIGRATION_DATABASE_URL`, exécuter `node --env-file=.env --import tsx scripts/provision.ts`, puis renseigner `DATABASE_URL` pour `taxilink_api` et `AUTH_DATABASE_URL` pour `taxilink_auth`. L’API n’applique pas de migrations avec ses identifiants runtime.
+
+## Vérification d’email et récupération de compte
+
+Compose démarre une boîte **Mailpit locale**, accessible sur http://localhost:8025. Les messages y restent : aucun email n’est envoyé à une vraie boîte. Depuis « Compte », demander une vérification d’adresse ; depuis la connexion, choisir « Mot de passe oublié ». Ouvrir le lien reçu dans Mailpit puis confirmer l’action dans l’application.
+
+Les liens expirent après 30 minutes, sont à usage unique et remplacés au renouvellement. Une demande par adresse et par minute au maximum crée un envoi, avec une réponse identique pour les comptes absents ou existants. Le jeton est hashé en base ; le contenu de la file est chiffré avec `MAIL_ENCRYPTION_KEY`, distincte de la clé MFA. Les liens utilisent le fragment de l’URL et sont retirés de la barre d’adresse dès ouverture. Aucune action n’est exécutée par une simple lecture de lien.
+
+Une récupération exige aussi un code MFA ou un code de récupération si le compte est protégé. Elle révoque toutes les sessions ; elle ne désactive pas la MFA. Les événements de confirmation et de récupération sont audités. La file retente au maximum cinq fois, avec délai croissant, avant l’expiration. Un arrêt après acceptation SMTP peut entraîner un doublon de livraison ; le lien reste utilisable une seule fois. Les liens et la file ne sont pas restaurés depuis les sauvegardes.
+
+Pour un serveur SMTP externe, configurer `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_ENCRYPTION_KEY` (64 caractères hexadécimaux) et `WEB_ORIGIN` HTTPS. TLS et validation des certificats restent obligatoires. L’exception `SMTP_ALLOW_INSECURE=true` est réservée à Mailpit/localhost en démonstration. Aucun fournisseur externe n’est préconfiguré. Les installations existantes doivent ajouter une clé mail unique à leur `.env` avant de relancer Compose ; `setup` ne remplace pas une configuration existante.
+
+`REQUIRE_VERIFIED_EMAIL=true` bloque les routes métier tant que l’adresse n’est pas vérifiée ; les routes de compte restent accessibles. Cette politique exige un SMTP configuré. Elle est désactivée par défaut dans la démo, y compris pour les comptes seedés dont l’adresse n’est pas déclarée vérifiée. Sans SMTP, les parcours de récupération indiquent clairement l’indisponibilité du service.
 
 ## Application chauffeur
 
@@ -110,6 +123,6 @@ Voir [docs/validation.md](docs/validation.md), [docs/adr/001-foundation.md](docs
 
 ## Avant une exploitation réelle
 
-Restent la sélection et l’intégration d’un routage réel, la vérification des emails/récupération par un canal délivré, les notifications push/email externes, la recette sur appareils, les tests de charge distribuée, les procédures d’exploitation et l’audit de sécurité. Le fournisseur d’hébergement et les prérequis RGPD/HDS/NIR doivent être validés pour les données visées. Les uploads de pièces médicales, OCR/puce et intégrations CPAM sont absents et ne peuvent pas être activés par un simple flag.
+Restent la sélection et l’intégration d’un routage réel, la configuration et la qualification de la délivrabilité SMTP externe, les notifications push/email externes, la recette sur appareils, les tests de charge distribuée, les procédures d’exploitation et l’audit de sécurité. Le fournisseur d’hébergement et les prérequis RGPD/HDS/NIR doivent être validés pour les données visées. Les uploads de pièces médicales, OCR/puce et intégrations CPAM sont absents et ne peuvent pas être activés par un simple flag.
 
 Le démarrage exige `DEMO_MODE=true` et refuse `REAL_SENSITIVE_DOCUMENTS_ENABLED=true`. Le pilote d’exploitation réel n’est donc pas déclaré terminé. Les fonctions V2 (paiements SaaS, portail établissements/patients, facturation B2, pooling, EV/solveur avancé) ne sont pas comprises dans cette démonstration.

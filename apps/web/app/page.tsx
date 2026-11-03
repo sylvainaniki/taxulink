@@ -8,6 +8,7 @@ import {
   type ReactElement,
 } from "react";
 import WorkspacePanels from "./WorkspacePanels";
+import AccountRecovery from "./AccountRecovery";
 import { field } from "./Fields";
 import { requestId } from "../../../packages/contracts/id";
 import { parisDateTime } from "../../../packages/contracts/dates";
@@ -60,6 +61,10 @@ const initialDate = () =>
   );
 const parisIso = parisDateTime;
 export default function Page() {
+  const [accountAction, setAccountAction] = useState<{
+    kind: "request" | "reset" | "verify";
+    token?: string;
+  } | null>(null);
   const [me, setMe] = useState<Row | null>(null),
     [tenant, setTenant] = useState(""),
     [csrf, setCsrf] = useState(""),
@@ -154,6 +159,20 @@ export default function Page() {
     return m;
   }
   useEffect(() => {
+    const match = window.location.hash.match(
+      /^#(reset|verify)=([a-f0-9]{64})$/,
+    );
+    if (match) {
+      setAccountAction({
+        kind: match[1] as "reset" | "verify",
+        token: match[2],
+      });
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search,
+      );
+    }
     loadIdentity()
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -394,6 +413,52 @@ export default function Page() {
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
+  if (accountAction)
+    return (
+      <AccountRecovery
+        {...accountAction}
+        close={() => window.location.assign("/")}
+      />
+    );
+  if (me?.email_verification_required && !me.email_verified)
+    return (
+      <main className="account-recovery panel padded">
+        <h1>Vérifiez votre adresse email</h1>
+        <p>
+          Un email de confirmation est nécessaire pour accéder à votre espace.
+        </p>
+        {error && (
+          <p role="alert" className="error">
+            {errors[error] || error}
+          </p>
+        )}
+        {notice && <p role="status">{notice}</p>}
+        <button
+          disabled={busy}
+          onClick={() =>
+            act(async () => {
+              await api("/auth/email/request", {});
+              setNotice(
+                "Si nécessaire, un lien de confirmation sera envoyé à votre adresse.",
+              );
+            })
+          }
+        >
+          Renvoyer le lien de confirmation
+        </button>
+        <button
+          className="quiet"
+          onClick={() =>
+            act(async () => {
+              await api("/auth/logout", {});
+              window.location.assign("/");
+            })
+          }
+        >
+          Déconnexion
+        </button>
+      </main>
+    );
   if (!me)
     return (
       <main className="login">
@@ -487,6 +552,13 @@ export default function Page() {
                   : modal === "register"
                     ? "Créer mon espace"
                     : "Ouvrir mon espace →"}
+              </button>
+              <button
+                className="quiet"
+                type="button"
+                onClick={() => setAccountAction({ kind: "request" })}
+              >
+                Mot de passe oublié
               </button>
               <button
                 className="quiet"

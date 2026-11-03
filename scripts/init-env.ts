@@ -9,6 +9,7 @@ async function main() {
     "API_DB_PASSWORD=" + token(),
     "AUTH_DB_PASSWORD=" + token(),
     "MFA_ENCRYPTION_KEY=" + randomBytes(32).toString("hex"),
+    "MAIL_ENCRYPTION_KEY=" + randomBytes(32).toString("hex"),
     "BACKUP_PASSPHRASE=" + token(),
     "PORT=4000",
     "WEB_ORIGIN=http://localhost:3000",
