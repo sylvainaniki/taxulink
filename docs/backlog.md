@@ -10,7 +10,7 @@ Les tests et la CI sont les critères de livraison de cet incrément. Une foncti
 
 1. Fournisseur de routage réel, géocodage/adresses privées et DTO de secteurs adaptés, quotas/contrats et tests terrain.
 2. Vérification d’email et récupération du compte par canal délivré ; notifications push/email avec prestataires configurés ; gestion distribuée des tentatives et des événements.
-3. Hébergement, HTTPS/secrets, charge distribuée, test Compose, sauvegarde d’exploitation, monitoring et procédures d’incident ; revue de sécurité indépendante.
+3. Hébergement, HTTPS/secrets, charge distribuée, sauvegarde d’exploitation, monitoring et procédures d’incident ; revue de sécurité indépendante.
 4. Validation sur vrais appareils, construction/signature et distribution des binaires Android/iOS.
 5. Qualification juridique des traitements et documents de santé, contrats/HDS/NIR/conservation/AIPD si applicable. Développer/activer ensuite le module de pièces privées avec quarantaine/antivirus et grants, pas avant cette porte.
 

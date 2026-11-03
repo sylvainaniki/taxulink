@@ -66,7 +66,7 @@ Le runtime réseau refuse les comptes superutilisateur/propriétaire trop privil
 docker compose up --build
 ```
 
-La configuration générée par `npm run setup` fournit les secrets nécessaires. Un conteneur de migration provisionne les rôles puis quitte ; le conteneur API ne reçoit pas le mot de passe propriétaire. Les ports sont exposés sur `127.0.0.1` uniquement. L’assemblage Compose doit encore être validé dans son ensemble ; les tests CI vérifient PostgreSQL 16 et les deux identités réseau restreintes.
+La configuration générée par `npm run setup` fournit les secrets nécessaires. Un conteneur de migration provisionne les rôles puis quitte ; le conteneur API ne reçoit pas le mot de passe propriétaire. Les ports sont exposés sur `127.0.0.1` uniquement. La CI vérifie le démarrage complet de Compose, les contrôles de santé et une connexion à travers le proxy web, ainsi que PostgreSQL 16 et les deux identités réseau restreintes.
 
 Pour un PostgreSQL géré sans Compose, configurer `MIGRATION_DATABASE_URL`, exécuter `node --env-file=.env --import tsx scripts/provision.ts`, puis renseigner `DATABASE_URL` pour `taxilink_api` et `AUTH_DATABASE_URL` pour `taxilink_auth`. L’API n’applique pas de migrations avec ses identifiants runtime.
 
@@ -110,6 +110,6 @@ Voir [docs/validation.md](docs/validation.md), [docs/adr/001-foundation.md](docs
 
 ## Avant une exploitation réelle
 
-Restent la sélection et l’intégration d’un routage réel, la vérification des emails/récupération par un canal délivré, les notifications push/email externes, la recette sur appareils, le test Compose complet, les tests de charge distribuée, les procédures d’exploitation et l’audit de sécurité. Le fournisseur d’hébergement et les prérequis RGPD/HDS/NIR doivent être validés pour les données visées. Les uploads de pièces médicales, OCR/puce et intégrations CPAM sont absents et ne peuvent pas être activés par un simple flag.
+Restent la sélection et l’intégration d’un routage réel, la vérification des emails/récupération par un canal délivré, les notifications push/email externes, la recette sur appareils, les tests de charge distribuée, les procédures d’exploitation et l’audit de sécurité. Le fournisseur d’hébergement et les prérequis RGPD/HDS/NIR doivent être validés pour les données visées. Les uploads de pièces médicales, OCR/puce et intégrations CPAM sont absents et ne peuvent pas être activés par un simple flag.
 
 Le démarrage exige `DEMO_MODE=true` et refuse `REAL_SENSITIVE_DOCUMENTS_ENABLED=true`. Le pilote d’exploitation réel n’est donc pas déclaré terminé. Les fonctions V2 (paiements SaaS, portail établissements/patients, facturation B2, pooling, EV/solveur avancé) ne sont pas comprises dans cette démonstration.

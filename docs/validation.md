@@ -16,6 +16,8 @@ Le nombre et les résultats exacts de la dernière exécution figurent dans la P
 
 ## Contrôles CI
 
+Exécution [41709441490](https://github.com/sylvainaniki/taxulink/actions/runs/41709441490), commit `d512585` : les deux jobs sont réussis. Les 49 tests passent sur PGlite et les 49 sur PostgreSQL 16 ; les parcours Playwright passent. Le job Compose construit les images, démarre les services et vérifie la santé ainsi que la connexion via le proxy web. Le benchmark du runner propose les 100 courses en 418 ms ; cette mesure synthétique dépend de la machine.
+
 Le workflow exécute les mêmes tests sur PostgreSQL 16 et sur de véritables connexions LOGIN métier/identité restreintes, puis les compilations web et Android, le benchmark, l’audit de dépendances et les parcours Playwright desktop/390 px : création/attribution/clôture, rôles, deux entreprises indépendantes, bourse/réservation/confirmation, messagerie et application d’une proposition de planning.
 
 Les captures restent des artefacts internes de test ; aucune validation visuelle sur téléphone physique n’est revendiquée. Le Chromium local ne peut pas être installé correctement dans l’environnement de réalisation ; la validation navigateur se fait sur le runner CI.
@@ -23,7 +25,7 @@ Les captures restent des artefacts internes de test ; aucune validation visuelle
 ## Limites à conserver
 
 - Pas de test Android/iOS sur appareil, d’APK signé, de publication store ou de déploiement utilisateur.
-- Compose fourni mais non exécuté intégralement localement ; les rôles PostgreSQL sont vérifiés séparément par la CI.
+- Compose est validé sur le runner Linux CI ; les paramètres et performances d’un futur hébergement ne sont pas qualifiés.
 - Pas de pentest, de charge multi-répliques, de routage réel, de livraison d’email/push externe ou de recette métier clinique.
 - L’audit npm doit être lu avec ses détails : l’ajout d’Expo peut exposer des avis de sévérité modérée dans ses outils CLI transitifs. Aucun résultat « zéro vulnérabilité » n’est revendiqué si l’audit en liste. Le seuil CI bloque les niveaux élevé et critique.
 - Les uploads médicaux et toute mise en exploitation réelle restent bloqués.
