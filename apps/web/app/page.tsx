@@ -471,7 +471,12 @@ export default function Page() {
                     : "Lecture limitée"}
             </small>
           </div>
-          <button title="Déconnexion" className="exit" onClick={logout}>
+          <button
+            title="Déconnexion"
+            aria-label="Déconnexion"
+            className="exit"
+            onClick={logout}
+          >
             ↪
           </button>
         </div>
@@ -487,6 +492,7 @@ export default function Page() {
           <button
             className="mobile-exit quiet"
             title="Déconnexion"
+            aria-label="Déconnexion"
             onClick={logout}
           >
             ↪ Quitter
