@@ -19,6 +19,24 @@ export async function validateAssignment(
   driver: Row,
   vehicle: Row,
 ) {
+  const shift = (
+    await q.query(
+      "SELECT * FROM driver_shifts WHERE driver_id=$1 AND shift_start<=$2 AND shift_end>$2 ORDER BY shift_start LIMIT 1",
+      [driver.id, course.pickup_at],
+    )
+  ).rows[0];
+  if (shift) driver = { ...driver, ...shift, id: driver.id };
+  if (driver.user_id)
+    requireThat(
+      (
+        await q.query(
+          "SELECT 1 FROM memberships WHERE user_id=$1 AND active AND role IN ('admin','dispatcher','driver')",
+          [driver.user_id],
+        )
+      ).rows.length,
+      422,
+      "DRIVER_ACCESS_REVOKED",
+    );
   requireThat(driver.active && vehicle.active, 422, "RESOURCE_INACTIVE");
   requireThat(
     vehicle.seats >= course.passengers &&
@@ -43,8 +61,9 @@ export async function validateAssignment(
   );
   const occupied = (
     await q.query(
-      `SELECT a.*,c.origin,c.destination FROM assignments a JOIN courses c ON c.id=a.course_id WHERE (a.driver_id=$1 OR a.vehicle_id=$2) AND c.status<>'cancelled' ORDER BY a.start_at`,
-      [driver.id, vehicle.id],
+      `SELECT a.driver_id,a.vehicle_id,a.start_at,a.end_at,c.origin,c.destination FROM assignments a JOIN courses c ON c.id=a.course_id WHERE (a.driver_id=$1 OR a.vehicle_id=$2) AND c.status<>'cancelled' AND a.end_at>$3 AND a.start_at<$4
+       UNION ALL SELECT h.driver_id,h.vehicle_id,h.start_at,h.end_at,h.origin,h.destination FROM resource_holds h WHERE (h.driver_id=$1 OR h.vehicle_id=$2) AND h.expires_at>now() AND h.end_at>$3 AND h.start_at<$4 ORDER BY start_at`,
+      [driver.id, vehicle.id, driver.shift_start, driver.shift_end],
     )
   ).rows;
   requireThat(
@@ -93,6 +112,12 @@ export async function validateAssignment(
     )
       throw new Fault(422, "BREAK_CONFLICT");
   }
+  requireThat(
+    !jobs.some((j) => j.vehicle_id !== vehicle.id) &&
+      !vehicleJobs.some((j) => j.driver_id !== driver.id),
+    422,
+    "VEHICLE_HANDOVER_REQUIRED",
+  );
   return {
     start: new Date(start).toISOString(),
     end: new Date(end).toISOString(),

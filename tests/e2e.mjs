@@ -82,9 +82,123 @@ try {
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: ".data/qa/driver-mobile.png", fullPage: true });
+  // Exercise two independent browser sessions through the actual UI.
+  async function signedIn(email) {
+    const context = await browser.newContext({
+      viewport: { width: 1440, height: 1100 },
+    });
+    const p = await context.newPage();
+    p.on("pageerror", (e) => failures.push(e.message));
+    await p.goto("http://localhost:3000");
+    await p.getByLabel("Adresse email").fill(email);
+    await p.getByLabel("Mot de passe").fill(process.env.DEMO_PASSWORD);
+    await p.getByRole("button", { name: "Ouvrir mon espace" }).click();
+    await p
+      .getByRole("heading", { name: "Une journée bien coordonnée." })
+      .waitFor();
+    return p;
+  }
+  const owner = await signedIn("admin@atlas.example"),
+    buyer = await signedIn("admin@horizon.example");
+  await owner.getByRole("button", { name: "＋ Nouvelle course" }).click();
+  await owner.getByLabel("Référence fictive").fill("DEMO-E2E-NET");
+  await owner.getByLabel("Prise en charge (Paris)").fill("10:00");
+  await owner.getByLabel("Rendez-vous (Paris)").fill("11:00");
+  await owner.getByRole("button", { name: "Confirmer →" }).click();
+  await owner.getByText("DEMO-E2E-NET", { exact: true }).waitFor();
+  await owner.getByRole("button", { name: "Bourse" }).click();
+  await owner
+    .getByText("＋ Proposer une course au réseau", { exact: true })
+    .click();
+  const source = owner.getByLabel("Course à proposer");
+  const sourceId = await source
+    .locator("option")
+    .filter({ hasText: "DEMO-E2E-NET" })
+    .getAttribute("value");
+  await source.selectOption(sourceId);
+  await owner
+    .getByRole("button", { name: "Publier l’offre", exact: true })
+    .click();
+  await owner
+    .locator(".offer-card")
+    .getByText("Disponible", { exact: true })
+    .waitFor();
+  await buyer.getByRole("button", { name: "Bourse" }).click();
+  await buyer
+    .locator(".offer-card")
+    .getByRole("button", { name: "Réserver", exact: true })
+    .click();
+  assert.equal(
+    await buyer.getByText("DEMO-E2E-NET", { exact: true }).count(),
+    0,
+  );
+  await buyer
+    .getByRole("button", { name: "Confirmer la réservation", exact: true })
+    .click();
+  await buyer
+    .getByText("Réservée · validation en attente", { exact: true })
+    .waitFor();
+  await buyer.getByRole("button", { name: "Planning" }).click();
+  await buyer.getByText("DEMO-HORIZON-1", { exact: true }).waitFor();
+  assert.equal(
+    await buyer.getByText("DEMO-E2E-NET", { exact: true }).count(),
+    0,
+  );
+  await owner
+    .getByRole("button", { name: "Confirmer le transfert", exact: true })
+    .click();
+  await owner.getByText("Transfert confirmé", { exact: true }).waitFor();
+  await buyer.getByRole("button", { name: "Courses", exact: false }).click();
+  await buyer.getByText("DEMO-E2E-NET", { exact: true }).waitFor();
+  await owner.getByRole("button", { name: "Messages", exact: false }).click();
+  await owner.getByLabel("Conversation du groupe").selectOption({ index: 1 });
+  await owner
+    .getByLabel("Votre message")
+    .fill("Message E2E fictif sans information patient");
+  await owner
+    .getByRole("button", { name: "Envoyer le message", exact: true })
+    .click();
+  await owner
+    .getByText("Message E2E fictif sans information patient", { exact: true })
+    .waitFor();
+  await buyer.getByRole("button", { name: "Messages", exact: false }).click();
+  await buyer.getByLabel("Conversation du groupe").selectOption({ index: 1 });
+  await buyer
+    .getByText("Message E2E fictif sans information patient", { exact: true })
+    .waitFor();
+  await owner
+    .getByRole("button", { name: "Optimisation", exact: false })
+    .click();
+  await owner
+    .getByRole("button", { name: "Calculer une proposition", exact: true })
+    .click();
+  await owner
+    .locator(".plan-card")
+    .first()
+    .getByRole("button", { name: "Appliquer cette proposition", exact: true })
+    .click();
+  await owner
+    .getByText("Planning confirmé et enregistré.", { exact: true })
+    .waitFor();
+  for (const viewport of [
+    { width: 1440, height: 1100 },
+    { width: 390, height: 844 },
+  ]) {
+    await buyer.setViewportSize(viewport);
+    assert.equal(
+      await buyer.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      ),
+      false,
+    );
+  }
+  await buyer.screenshot({
+    path: ".data/qa/network-chat-mobile.png",
+    fullPage: true,
+  });
   assert.deepEqual(failures, []);
   console.log(
-    "E2E passed: login, tenant boundary, create/assign/complete, mobile overflow, logout, driver role.",
+    "E2E passed: login, tenant boundary, create/assign/complete, mobile overflow, logout, driver role, private marketplace/owner confirmation, cross-company group chat, proposal/apply planning.",
   );
 } finally {
   await browser.close();

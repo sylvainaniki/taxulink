@@ -1,22 +1,26 @@
 {
   "name": "taxilink",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "workspaces": [
-    "apps/web"
+    "apps/web",
+    "apps/mobile"
   ],
   "scripts": {
     "dev": "node --import tsx apps/api/src/main.ts",
     "dev:web": "npm run dev -w apps/web",
     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web && tsc --noEmit -p apps/mobile",
     "build": "npm run build -w apps/web",
-    "lint": "prettier --check apps packages tests db docs/adr README.md",
-    "format": "prettier --write apps packages tests db docs/adr README.md",
+    "lint": "prettier --check apps packages tests db docs/adr scripts README.md",
+    "format": "prettier --write apps packages tests db docs/adr scripts README.md",
     "db:migrate": "node --import tsx apps/api/src/migrate.ts",
     "db:seed": "node --import tsx apps/api/src/seed.ts",
     "contract:generate": "node --import tsx packages/contracts/generate.ts && prettier --write packages/contracts/openapi.json",
-    "test:e2e": "node --env-file=.env tests/e2e.mjs"
+    "test:e2e": "node --env-file=.env tests/e2e.mjs",
+    "dev:mobile": "npm run start -w @taxilink/mobile",
+    "build:mobile": "npm run export -w @taxilink/mobile",
+    "setup": "node --import tsx scripts/init-env.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.3.14",

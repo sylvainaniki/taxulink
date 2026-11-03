@@ -2,10 +2,15 @@
 import {
   useEffect,
   useState,
+  useRef,
   cloneElement,
   type FormEvent,
   type ReactElement,
 } from "react";
+import WorkspacePanels from "./WorkspacePanels";
+import { field } from "./Fields";
+import { requestId } from "../../../packages/contracts/id";
+import { parisDateTime } from "../../../packages/contracts/dates";
 type Row = Record<string, any>;
 const status: Record<string, string> = {
   unassigned: "À attribuer",
@@ -16,6 +21,12 @@ const status: Record<string, string> = {
   cancelled: "Annulée",
 };
 const errors: Record<string, string> = {
+  MFA_REQUIRED:
+    "Saisissez le code de votre application d’authentification ou un code de récupération.",
+  MFA_INVALID:
+    "Code invalide ou déjà utilisé. Attendez le prochain code ou utilisez un code de récupération.",
+  MFA_UNAVAILABLE:
+    "La double authentification est indisponible sur cette installation.",
   INVALID_CREDENTIALS: "Identifiants incorrects.",
   ACCESS_DENIED: "Votre rôle ne permet pas cette action.",
   SESSION_REQUIRED: "Connectez-vous pour continuer.",
@@ -47,18 +58,7 @@ const initialDate = () =>
   new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Paris" }).format(
     new Date(),
   );
-function parisIso(day: string, hour: string) {
-  const local = new Date(`${day}T${hour}:00Z`);
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Europe/Paris",
-    timeZoneName: "shortOffset",
-  }).formatToParts(local);
-  const offset =
-    parts
-      .find((p) => p.type === "timeZoneName")
-      ?.value.match(/GMT([+-]\d+)/)?.[1] || "+0";
-  return `${day}T${hour}:00${Number(offset) >= 0 ? "+" : "-"}${String(Math.abs(Number(offset))).padStart(2, "0")}:00`;
-}
+const parisIso = parisDateTime;
 export default function Page() {
   const [me, setMe] = useState<Row | null>(null),
     [tenant, setTenant] = useState(""),
@@ -66,6 +66,7 @@ export default function Page() {
     [tab, setTab] = useState("Planning"),
     [date, setDate] = useState("2026-11-04");
   const [courses, setCourses] = useState<Row[]>([]),
+    [customers, setCustomers] = useState<Row[]>([]),
     [drivers, setDrivers] = useState<Row[]>([]),
     [vehicles, setVehicles] = useState<Row[]>([]),
     [locations, setLocations] = useState<Row[]>([]),
@@ -75,6 +76,7 @@ export default function Page() {
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
+    [mfaLogin, setMfaLogin] = useState(false),
     [modal, setModal] = useState(""),
     [selected, setSelected] = useState<Row | null>(null),
     [search, setSearch] = useState(""),
@@ -82,6 +84,7 @@ export default function Page() {
     [inviteToken, setInviteToken] = useState(""),
     [offline, setOffline] = useState(false),
     [updated, setUpdated] = useState("");
+  const identityEpoch = useRef(0);
   const membership = me?.memberships?.find((m: Row) => m.tenant_id === tenant);
   const manage = ["admin", "dispatcher"].includes(membership?.role),
     admin = membership?.role === "admin";
@@ -91,6 +94,7 @@ export default function Page() {
     active = tenant,
     csrfValue = csrf,
   ) {
+    const requestEpoch = identityEpoch.current;
     let response: Response;
     try {
       response = await fetch("/api/v1" + path, {
@@ -103,7 +107,7 @@ export default function Page() {
           ...(body
             ? {
                 "X-CSRF-Token": csrfValue,
-                "Idempotency-Key": crypto.randomUUID(),
+                "Idempotency-Key": requestId(),
               }
             : {}),
         },
@@ -113,11 +117,33 @@ export default function Page() {
       throw new Error("NETWORK");
     }
     const value = await response.json();
-    if (!response.ok) throw new Error(value.code || "NETWORK");
+    if (!response.ok) {
+      if (["MFA_REQUIRED", "MFA_INVALID"].includes(value.code))
+        setMfaLogin(true);
+      if (
+        response.status === 401 &&
+        value.code === "SESSION_REQUIRED" &&
+        me &&
+        requestEpoch === identityEpoch.current
+      ) {
+        identityEpoch.current++;
+        setMe(null);
+        setTenant("");
+        setCourses([]);
+        setCustomers([]);
+        setDrivers([]);
+        setVehicles([]);
+        setGroups([]);
+        setInvites([]);
+      }
+      throw new Error(value.code || "NETWORK");
+    }
     return value;
   }
   async function loadIdentity() {
+    const generation = identityEpoch.current;
     const m = await api("/auth/me");
+    if (generation !== identityEpoch.current) return m;
     setMe(m);
     setCsrf(m.csrf);
     setTenant((t) =>
@@ -142,19 +168,55 @@ export default function Page() {
   }, []);
   async function refresh() {
     if (!tenant) return;
-    const [c, d, v, l, g, i] = await Promise.all([
+    const generation = identityEpoch.current;
+    const identity = await api("/auth/me");
+    if (generation !== identityEpoch.current) return;
+    const current = identity.memberships.find(
+      (m: Row) => m.tenant_id === tenant,
+    );
+    if (!current) {
+      setCourses([]);
+      setCustomers([]);
+      setDrivers([]);
+      setVehicles([]);
+      setGroups([]);
+      setInvites([]);
+      setMe(identity);
+      setTenant(identity.memberships[0]?.tenant_id || "");
+      throw new Error("ACCESS_DENIED");
+    }
+    if (current.role !== membership?.role) {
+      identityEpoch.current++;
+      setCourses([]);
+      setCustomers([]);
+      setDrivers([]);
+      setVehicles([]);
+      setGroups([]);
+      setInvites([]);
+      setInviteToken("");
+      setMe(identity);
+      return;
+    }
+    setMe(identity);
+    const allowed = ["admin", "dispatcher"].includes(current.role);
+    const [c, d, v, l, g, i, contacts] = await Promise.all([
       api("/courses?date=" + date),
       api("/drivers"),
-      manage ? api("/vehicles") : Promise.resolve([]),
+      allowed || current.role === "driver"
+        ? api("/vehicles")
+        : Promise.resolve([]),
       api("/locations"),
       api("/groups"),
-      admin ? api("/invitations") : Promise.resolve([]),
+      current.role === "admin" ? api("/invitations") : Promise.resolve([]),
+      allowed ? api("/contacts") : Promise.resolve([]),
     ]);
-    return { c, d, v, l, g, i };
+    if (generation !== identityEpoch.current) return;
+    return { c, d, v, l, g, i, contacts };
   }
   function acceptRefresh(x: any) {
     if (!x) return;
     setCourses(x.c);
+    setCustomers((x.contacts || []).filter((c: Row) => c.kind === "customer"));
     setDrivers(x.d);
     setVehicles(x.v);
     setLocations(x.l);
@@ -166,6 +228,7 @@ export default function Page() {
     if (!tenant) return;
     let current = true;
     setCourses([]);
+    setCustomers([]);
     setDrivers([]);
     setVehicles([]);
     setGroups([]);
@@ -217,6 +280,9 @@ export default function Page() {
   async function logout() {
     await act(async () => {
       await api("/auth/logout", {});
+      identityEpoch.current++;
+      setMfaLogin(false);
+      setCustomers([]);
       setMe(null);
       setTenant("");
       setCsrf("");
@@ -235,20 +301,28 @@ export default function Page() {
     const d = Object.fromEntries(new FormData(e.currentTarget));
     await act(async () => {
       if (!me) {
+        identityEpoch.current++;
         if (modal === "register")
           await api("/auth/register", {
             email: d.email,
             password: d.password,
             company: d.company,
           });
-        else await api("/auth/login", { email: d.email, password: d.password });
+        else
+          await api("/auth/login", {
+            email: d.email,
+            password: d.password,
+            ...(d.mfa ? { mfa_code: d.mfa } : {}),
+            ...(d.recovery ? { recovery_code: d.recovery } : {}),
+          });
         await loadIdentity();
         setModal("");
         return;
       }
-      if (modal === "course")
-        await api("/courses", {
+      if (modal === "course" || modal === "edit") {
+        const course = {
           reference: d.reference,
+          ...(d.customer ? { customer_id: d.customer } : {}),
           origin: d.origin,
           destination: d.destination,
           pickup_at: parisIso(date, String(d.pickup)),
@@ -256,6 +330,17 @@ export default function Page() {
           arrival_buffer: Number(d.buffer),
           passengers: Number(d.passengers),
           accessible: d.accessible === "on",
+        };
+        if (modal === "edit" && selected)
+          await api(`/courses/${selected.id}/update`, {
+            course,
+            version: selected.version,
+          });
+        else await api("/courses", course);
+      }
+      if (modal === "delay" && selected)
+        await api(`/courses/${selected.id}/delay`, {
+          minutes: Number(d.minutes),
         });
       if (modal === "driver")
         await api("/drivers", {
@@ -293,23 +378,8 @@ export default function Page() {
     });
   }
   const loc = (id: string) => locations.find((l) => l.id === id)?.label || id;
-  const field = (label: string, child: ReactElement<{ id?: string }>) => {
-    const id =
-      "field-" +
-      label
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-");
-    return (
-      <div className="field">
-        <label htmlFor={id}>{label}</label>
-        {cloneElement(child, { id })}
-      </div>
-    );
-  };
-  const locationSelect = (name: string) => (
-    <select name={name} required>
+  const locationSelect = (name: string, initial?: string) => (
+    <select name={name} defaultValue={initial} required>
       {locations.map((l) => (
         <option key={l.id} value={l.id}>
           {l.label}
@@ -388,6 +458,24 @@ export default function Page() {
                   minLength={modal === "register" ? 16 : 1}
                 />,
               )}
+              {mfaLogin && modal !== "register" && (
+                <>
+                  {field(
+                    "Code de l’application d’authentification",
+                    <input
+                      name="mfa"
+                      inputMode="numeric"
+                      pattern="[0-9]{6}"
+                      maxLength={6}
+                      autoComplete="one-time-code"
+                    />,
+                  )}
+                  {field(
+                    "Ou un code de récupération",
+                    <input name="recovery" maxLength={17} autoComplete="off" />,
+                  )}
+                </>
+              )}
               {error && (
                 <p role="alert" className="error">
                   {errors[error] || error}
@@ -440,6 +528,9 @@ export default function Page() {
             setError("");
             setNotice("");
             setInviteToken("");
+            identityEpoch.current++;
+            setCourses([]);
+            setCustomers([]);
             setTenant(e.target.value);
           }}
         >
@@ -450,8 +541,41 @@ export default function Page() {
           ))}
         </select>
         <nav>
-          {["Planning", "Courses", "Équipe & flotte", "Réseaux", "Accès"]
-            .filter((t) => manage || !["Équipe & flotte", "Accès"].includes(t))
+          {[
+            "Planning",
+            "Courses",
+            "Bourse",
+            "Optimisation",
+            "Messages",
+            "Réseaux",
+            "Équipe & flotte",
+            "Contacts",
+            "Récurrences & retours",
+            "Statistiques",
+            "Notifications",
+            "Accès",
+            "Administration",
+            "Compte",
+          ]
+            .filter((t) =>
+              t === "Administration"
+                ? admin
+                : t === "Accès"
+                  ? admin
+                  : [
+                        "Équipe & flotte",
+                        "Contacts",
+                        "Récurrences & retours",
+                        "Statistiques",
+                        "Optimisation",
+                      ].includes(t)
+                    ? manage
+                    : ["Bourse", "Messages", "Réseaux"].includes(t)
+                      ? ["admin", "dispatcher", "driver"].includes(
+                          membership?.role,
+                        )
+                      : true,
+            )
             .map((t, i) => (
               <button
                 key={t}
@@ -462,7 +586,7 @@ export default function Page() {
                   setFilter("all");
                 }}
               >
-                <span>{["◫", "↗", "◉", "⌘", "◇"][i]}</span>
+                <span>{["◫", "↗", "⌘", "◇", "◉"][i % 5]}</span>
                 {t}
                 {t === "Planning" && (
                   <em>
@@ -514,6 +638,18 @@ export default function Page() {
           </button>
         </header>
         <main className="main">
+          {!["Planning", "Courses"].includes(tab) && (
+            <label className="date-switch">
+              Date active{" "}
+              <input
+                aria-label="Date active"
+                type="date"
+                value={date}
+                disabled={busy}
+                onChange={(e) => e.target.value && setDate(e.target.value)}
+              />
+            </label>
+          )}
           <div className="heading">
             <div>
               <p className="eyebrow">
@@ -533,31 +669,38 @@ export default function Page() {
                   : "Votre espace de coordination, au même endroit."}
               </p>
             </div>
-            {manage && (
-              <button
-                disabled={busy || offline}
-                onClick={() =>
-                  setModal(
-                    tab === "Équipe & flotte"
-                      ? "driver"
-                      : tab === "Réseaux"
-                        ? "group"
-                        : tab === "Accès"
-                          ? "invite"
-                          : "course",
-                  )
-                }
-              >
-                ＋{" "}
-                {tab === "Équipe & flotte"
-                  ? "Ajouter un chauffeur"
-                  : tab === "Réseaux"
-                    ? "Créer un groupe"
-                    : tab === "Accès"
-                      ? "Inviter un membre"
-                      : "Nouvelle course"}
-              </button>
-            )}
+            {manage &&
+              [
+                "Planning",
+                "Courses",
+                "Équipe & flotte",
+                "Réseaux",
+                "Accès",
+              ].includes(tab) && (
+                <button
+                  disabled={busy || offline}
+                  onClick={() =>
+                    setModal(
+                      tab === "Équipe & flotte"
+                        ? "driver"
+                        : tab === "Réseaux"
+                          ? "group"
+                          : tab === "Accès"
+                            ? "invite"
+                            : "course",
+                    )
+                  }
+                >
+                  ＋{" "}
+                  {tab === "Équipe & flotte"
+                    ? "Ajouter un chauffeur"
+                    : tab === "Réseaux"
+                      ? "Créer un groupe"
+                      : tab === "Accès"
+                        ? "Inviter un membre"
+                        : "Nouvelle course"}
+                </button>
+              )}
           </div>
           {offline && (
             <div role="alert" className="error">
@@ -713,6 +856,25 @@ export default function Page() {
                         </div>
                         <div className="course-route">
                           <span className="reference">{c.reference}</span>
+                          {c.passenger_name && (
+                            <p className="passenger">
+                              {c.passenger_name}
+                              {c.passenger_phone && (
+                                <>
+                                  {" "}
+                                  ·{" "}
+                                  <a
+                                    href={
+                                      "tel:" +
+                                      c.passenger_phone.replace(/[^+0-9]/g, "")
+                                    }
+                                  >
+                                    {c.passenger_phone}
+                                  </a>
+                                </>
+                              )}
+                            </p>
+                          )}
                           <h3>
                             {loc(c.origin)} <span>→</span> {loc(c.destination)}
                           </h3>
@@ -731,6 +893,55 @@ export default function Page() {
                           </small>
                         </div>
                         <div className="course-actions">
+                          {manage &&
+                            c.status === "unassigned" &&
+                            !c.source_course_id && (
+                              <button
+                                className="quiet"
+                                disabled={busy || offline}
+                                onClick={() => {
+                                  setSelected(c);
+                                  setModal("edit");
+                                }}
+                              >
+                                Modifier
+                              </button>
+                            )}
+                          {manage &&
+                            c.status === "assigned" &&
+                            c.driver_id &&
+                            !c.source_course_id && (
+                              <button
+                                className="quiet"
+                                disabled={busy || offline}
+                                onClick={() =>
+                                  act(async () => {
+                                    await api(`/courses/${c.id}/unassign`, {
+                                      version: c.version,
+                                    });
+                                    acceptRefresh(await refresh());
+                                  })
+                                }
+                              >
+                                Désattribuer
+                              </button>
+                            )}
+                          {Boolean(c.driver_id) &&
+                            ["assigned", "approaching", "onboard"].includes(
+                              c.status,
+                            ) && (
+                              <button
+                                className="quiet"
+                                disabled={busy || offline}
+                                onClick={() => {
+                                  setSelected(c);
+                                  setModal("delay");
+                                }}
+                              >
+                                Signaler un retard
+                              </button>
+                            )}
+
                           {manage && c.status === "unassigned" && (
                             <button
                               className="outline"
@@ -743,41 +954,44 @@ export default function Page() {
                               Attribuer →
                             </button>
                           )}
-                          {["assigned", "approaching", "onboard"].includes(
-                            c.status,
-                          ) && (
-                            <button
-                              className="outline"
-                              disabled={busy || offline}
-                              onClick={() =>
-                                act(async () => {
-                                  const next = (
+                          {Boolean(c.driver_id) &&
+                            ["assigned", "approaching", "onboard"].includes(
+                              c.status,
+                            ) && (
+                              <button
+                                className="outline"
+                                disabled={busy || offline}
+                                onClick={() =>
+                                  act(async () => {
+                                    const next = (
+                                      {
+                                        assigned: "approaching",
+                                        approaching: "onboard",
+                                        onboard: "completed",
+                                      } as Row
+                                    )[c.status];
+                                    await api(`/courses/${c.id}/status`, {
+                                      status: next,
+                                      version: c.version,
+                                    });
+                                    acceptRefresh(await refresh());
+                                    setNotice(
+                                      "Statut confirmé par le serveur.",
+                                    );
+                                  })
+                                }
+                              >
+                                {
+                                  (
                                     {
-                                      assigned: "approaching",
-                                      approaching: "onboard",
-                                      onboard: "completed",
+                                      assigned: "En approche",
+                                      approaching: "À bord",
+                                      onboard: "Terminer",
                                     } as Row
-                                  )[c.status];
-                                  await api(`/courses/${c.id}/status`, {
-                                    status: next,
-                                    version: c.version,
-                                  });
-                                  acceptRefresh(await refresh());
-                                  setNotice("Statut confirmé par le serveur.");
-                                })
-                              }
-                            >
-                              {
-                                (
-                                  {
-                                    assigned: "En approche",
-                                    approaching: "À bord",
-                                    onboard: "Terminer",
-                                  } as Row
-                                )[c.status]
-                              }
-                            </button>
-                          )}
+                                  )[c.status]
+                                }
+                              </button>
+                            )}
                           {manage &&
                             ["unassigned", "assigned", "approaching"].includes(
                               c.status,
@@ -863,31 +1077,6 @@ export default function Page() {
               </div>
             </>
           )}
-          {tab === "Réseaux" && (
-            <div className="panel">
-              <div className="panel-head">
-                <h2>Vos groupes privés</h2>
-                <span className="status assigned">Accès contrôlé</span>
-              </div>
-              <div className="cards">
-                {groups.map((g) => (
-                  <article key={g.id}>
-                    <span className="vehicle-icon">⌘</span>
-                    <h3>{g.name}</h3>
-                    <p>
-                      {g.owner_tenant_id === tenant
-                        ? "Groupe administré par votre entreprise"
-                        : "Entreprise membre"}
-                    </p>
-                  </article>
-                ))}
-              </div>
-              <p className="empty">
-                La bourse de courses et la messagerie seront ajoutées au lot
-                suivant.
-              </p>
-            </div>
-          )}
           {tab === "Accès" && (
             <div className="panel">
               <div className="panel-head">
@@ -933,6 +1122,46 @@ export default function Page() {
               )}
             </div>
           )}
+          {[
+            "Équipe & flotte",
+            "Bourse",
+            "Messages",
+            "Réseaux",
+            "Optimisation",
+            "Contacts",
+            "Récurrences & retours",
+            "Statistiques",
+            "Notifications",
+            "Administration",
+            "Compte",
+          ].includes(tab) && (
+            <WorkspacePanels
+              tab={tab}
+              tenant={tenant}
+              date={date}
+              role={membership?.role || "viewer"}
+              courses={courses}
+              drivers={drivers}
+              vehicles={vehicles}
+              locations={locations}
+              groups={groups}
+              api={api}
+              reload={async () => acceptRefresh(await refresh())}
+              onBusy={setBusy}
+              onSessionClosed={() => {
+                identityEpoch.current++;
+                setCustomers([]);
+                setMe(null);
+                setTenant("");
+                setCsrf("");
+                setCourses([]);
+                setDrivers([]);
+                setVehicles([]);
+                setGroups([]);
+                setInvites([]);
+              }}
+            />
+          )}
           <footer>
             {" "}
             T A X I L I N K <span>·</span> Données fictives uniquement{" "}
@@ -961,6 +1190,8 @@ export default function Page() {
                 (
                   {
                     course: "Nouvelle course",
+                    edit: "Modifier la course",
+                    delay: "Signaler un retard",
                     driver: "Ajouter un chauffeur",
                     vehicle: "Ajouter un véhicule",
                     assign: "Attribuer une mission",
@@ -999,7 +1230,7 @@ export default function Page() {
               </>
             ) : (
               <form onSubmit={submit}>
-                {modal === "course" && (
+                {(modal === "course" || modal === "edit") && (
                   <>
                     {field(
                       "Référence fictive",
@@ -1007,19 +1238,54 @@ export default function Page() {
                         autoFocus
                         name="reference"
                         placeholder="DEMO-005"
+                        defaultValue={
+                          modal === "edit" ? selected?.reference : undefined
+                        }
                         required
                         maxLength={60}
                       />,
                     )}
-                    {field("Départ", locationSelect("origin"))}
-                    {field("Destination", locationSelect("destination"))}
+                    {field(
+                      "Client / patient fictif",
+                      <select
+                        name="customer"
+                        defaultValue={
+                          modal === "edit" ? selected?.customer_id || "" : ""
+                        }
+                      >
+                        <option value="">Sans fiche associée</option>
+                        {customers.map((c) => (
+                          <option value={c.id} key={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>,
+                    )}
+                    {field(
+                      "Départ",
+                      locationSelect(
+                        "origin",
+                        modal === "edit" ? selected?.origin : undefined,
+                      ),
+                    )}
+                    {field(
+                      "Destination",
+                      locationSelect(
+                        "destination",
+                        modal === "edit" ? selected?.destination : undefined,
+                      ),
+                    )}
                     <div className="form-grid">
                       {field(
                         "Prise en charge (Paris)",
                         <input
                           name="pickup"
                           type="time"
-                          defaultValue="09:00"
+                          defaultValue={
+                            modal === "edit" && selected
+                              ? time(selected.pickup_at)
+                              : "09:00"
+                          }
                           required
                         />,
                       )}
@@ -1028,7 +1294,11 @@ export default function Page() {
                         <input
                           name="appointment"
                           type="time"
-                          defaultValue="10:00"
+                          defaultValue={
+                            modal === "edit" && selected
+                              ? time(selected.appointment_at)
+                              : "10:00"
+                          }
                           required
                         />,
                       )}
@@ -1039,7 +1309,9 @@ export default function Page() {
                           type="number"
                           min={0}
                           max={120}
-                          defaultValue={15}
+                          defaultValue={
+                            modal === "edit" ? selected?.arrival_buffer : 15
+                          }
                           required
                         />,
                       )}
@@ -1050,13 +1322,21 @@ export default function Page() {
                           type="number"
                           min={1}
                           max={8}
-                          defaultValue={1}
+                          defaultValue={
+                            modal === "edit" ? selected?.passengers : 1
+                          }
                           required
                         />,
                       )}
                     </div>
                     <label className="check">
-                      <input name="accessible" type="checkbox" />
+                      <input
+                        name="accessible"
+                        type="checkbox"
+                        defaultChecked={
+                          modal === "edit" ? selected?.accessible : false
+                        }
+                      />
                       Véhicule adapté PMR requis
                     </label>
                     <p className="hint">
@@ -1065,6 +1345,18 @@ export default function Page() {
                     </p>
                   </>
                 )}
+                {modal === "delay" &&
+                  field(
+                    "Retard estimé (minutes)",
+                    <input
+                      name="minutes"
+                      type="number"
+                      min={1}
+                      max={240}
+                      defaultValue={15}
+                      required
+                    />,
+                  )}
                 {modal === "driver" && (
                   <>
                     {field(

@@ -7,3 +7,6 @@ node_modules/
 coverage/
 *.tsbuildinfo
 docs/specs/
+apps/mobile/dist/
+apps/mobile/.expo/
+*.tlbackup

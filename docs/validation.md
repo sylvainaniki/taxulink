@@ -1,28 +1,29 @@
-# Validation de l’incrément initial — 3 novembre 2026
+# Validation 0.2 — 3 novembre 2026
 
-## Vérifications réalisées
+Le dépôt était vide au premier incrément. Les documents de cadrage ont été consultés sans être publiés.
 
-- Dossier Word de consultation extrait ; même contenu dans les deux versions Word jointes. Dépôt GitHub vide au démarrage.
-- Migration SQL appliquée, puis rejouée sans effet ; fixtures fictives écrites et API démarrée sur le répertoire persistant PGlite.
-- `npm run typecheck` : vérification du backend, contrats, tests et interface.
-- `npm test` : 25 cas API/règles métier. Une requête traverse NestJS/Express avec injection HTTP en mémoire et PostgreSQL embarqué avec RLS. Aucun mock de la base ni des permissions.
-- Course : 50 affectations concurrentes donnent une seule réponse de succès et 49 refus de version/concurrence. Ceci ne constitue pas le test du futur claim d’offre réseau.
-- Conflits chauffeur/véhicule, routage expiré, délais entre missions, pauses, services, capacité, transitions/versionnement, clé d’idempotence, invitations, révocation, permissions et RLS couverts.
-- `npm run lint` : formatage Prettier.
-- `npm run build` : compilation Next.js de production.
-- Smoke HTTP réel : route santé testée sur un port éphémère, réponse 200 avec documents désactivés.
-- `npm audit --omit=dev --audit-level=high` : aucune vulnérabilité de dépendance de production signalée après mises à jour.
+## Contrôles locaux
 
-Les résultats exacts de la dernière exécution sont indiqués dans la pull request. La CI répète les contrôles et ajoute les tests PostgreSQL 16, un contrôle des dépendances et le parcours navigateur.
+- TypeScript API/contrats/tests, web et Expo.
+- Formatage Prettier ; compilation Next.js de production.
+- Export Android Expo/Hermes : bundle généré, sans construction ni signature d’APK.
+- Tests d’intégration NestJS/Express avec PostgreSQL embarqué : isolation/RLS/RBAC, concurrence, bourse, validation propriétaire, visibilité minimale, révocations, chat, planification/équilibrage, récurrences/DST, retours, import/export, sauvegarde/restauration, sessions bearer, mots de passe et MFA.
+- 50 claims simultanés sur une offre, y compris depuis deux groupes : exactement une réservation ; aucune mission finale avant confirmation.
+- Benchmark synthétique 100 courses/20 chauffeurs éligibles : 100 propositions, zéro non attribuée, environ 1,8 s lors de la mesure locale sur PGlite. Cette mesure ne représente pas une matrice routière réelle ni une charge distribuée.
+- Archive restaurée dans un autre moteur avec permissions intactes et aucune session restaurée ; clé erronée et base non vide refusées.
 
-## Vérifications non acquises localement
+Le nombre et les résultats exacts de la dernière exécution figurent dans la PR et la CI associée. Aucun contrôle d’une version antérieure ne vaut validation du dernier commit.
 
-- Le navigateur Chromium n’est pas installé dans l’environnement. `npx playwright install chromium` reçoit une archive non exploitable ; aucune capture ou validation visuelle desktop/mobile n’est présentée comme réussie. Le parcours `tests/e2e.mjs` est fourni et doit passer en CI ou sur une machine équipée : connexion, création, affectation, transitions, responsive sans débordement, déconnexion, compte chauffeur.
-- Docker et le serveur PostgreSQL natif ne sont pas disponibles localement. Compose, migration PostgreSQL réseau et concurrence entre plusieurs processus restent à exécuter hors PGlite ; le workflow CI est prévu pour PostgreSQL 16.
-- Pas de test de charge, de restauration, de pentest, d’Expo sur appareil, d’offline, d’identité MFA ni de production.
+## Contrôles CI
 
-## Limites connues
+Le workflow exécute les mêmes tests sur PostgreSQL 16 et sur de véritables connexions LOGIN métier/identité restreintes, puis les compilations web et Android, le benchmark, l’audit de dépendances et les parcours Playwright desktop/390 px : création/attribution/clôture, rôles, deux entreprises indépendantes, bourse/réservation/confirmation, messagerie et application d’une proposition de planning.
 
-Le runtime est volontairement bloqué en démonstration. Le compte propriétaire de base n’est pas encore séparé du compte d’identité ; voir ADR-002. Les trajets sont synthétiques. Un service unique par chauffeur est exposé. Les sorties OpenAPI ne sont pas encore suffisamment typées pour générer un SDK. La bourse, les fichiers et les fonctions P1/P2 restent absents.
+Les captures restent des artefacts internes de test ; aucune validation visuelle sur téléphone physique n’est revendiquée. Le Chromium local ne peut pas être installé correctement dans l’environnement de réalisation ; la validation navigateur se fait sur le runner CI.
 
-Les scripts de test navigateur nécessitent une base de démonstration vierge au premier passage ; ils ajoutent une mission `DEMO-E2E`. Ne pas les exécuter sur un environnement d’exploitation.
+## Limites à conserver
+
+- Pas de test Android/iOS sur appareil, d’APK signé, de publication store ou de déploiement utilisateur.
+- Compose fourni mais non exécuté intégralement localement ; les rôles PostgreSQL sont vérifiés séparément par la CI.
+- Pas de pentest, de charge multi-répliques, de routage réel, de livraison d’email/push externe ou de recette métier clinique.
+- L’audit npm doit être lu avec ses détails : l’ajout d’Expo peut exposer des avis de sévérité modérée dans ses outils CLI transitifs. Aucun résultat « zéro vulnérabilité » n’est revendiqué si l’audit en liste. Le seuil CI bloque les niveaux élevé et critique.
+- Les uploads médicaux et toute mise en exploitation réelle restent bloqués.

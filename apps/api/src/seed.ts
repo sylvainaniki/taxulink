@@ -112,7 +112,9 @@ if (process.argv[1]?.endsWith("/seed.ts")) {
   (async () => {
     if (process.env.DEMO_MODE !== "true")
       throw new Error("DEMO_MODE=true required");
-    const db = await connect(process.env.DATABASE_URL);
+    const db = await connect(
+      process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL,
+    );
     try {
       await migrate(db);
       await seed(

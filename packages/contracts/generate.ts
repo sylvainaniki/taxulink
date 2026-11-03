@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { z } from "zod";
 import * as models from "./index";
+import * as extended from "./extended";
 const schemas: Record<string, any> = {};
 for (const name of [
   "loginInput",
@@ -15,6 +16,11 @@ for (const name of [
   "statusInput",
 ] as const) {
   const json = z.toJSONSchema(models[name]);
+  delete json.$schema;
+  schemas[name] = json;
+}
+for (const [name, schema] of Object.entries(extended)) {
+  const json = z.toJSONSchema(schema);
   delete json.$schema;
   schemas[name] = json;
 }
@@ -70,13 +76,15 @@ function add(
   const status =
     method === "get" ||
     path === "/auth/login" ||
+    path === "/auth/mobile-login" ||
+    path === "/auth/change-password" ||
     path === "/auth/logout" ||
     path === "/invitations/accept"
       ? "200"
       : "201";
   const op: any = {
     summary,
-    security: publicRoute ? [] : [{ sessionCookie: [] }],
+    security: publicRoute ? [] : [{ sessionCookie: [] }, { mobileBearer: [] }],
     parameters,
     responses: {
       [status]: {
@@ -176,6 +184,112 @@ add(
   "acceptInput",
 );
 add("/audit", "get", "Cent derniers événements de sécurité de l’entreprise");
+add(
+  "/auth/mobile-login",
+  "post",
+  "Ouvrir une session mobile bearer",
+  "loginInput",
+  true,
+);
+add(
+  "/auth/change-password",
+  "post",
+  "Changer le mot de passe et révoquer toutes les sessions",
+  "passwordInput",
+);
+for (const [path, summary] of [
+  ["company", "Entreprise active"],
+  ["members", "Membres et droits administrateur"],
+  ["people", "Collaborateurs actifs de son entreprise"],
+  ["contacts", "Clients et établissements de son entreprise"],
+  ["shifts", "Services des chauffeurs"],
+  ["offers", "Offres minimales des groupes autorisés"],
+  ["network-invitations", "Invitations de réseau reçues"],
+  ["notifications", "Notifications personnelles"],
+  ["alerts", "Alertes opérationnelles"],
+  ["analytics", "Indicateurs de l’entreprise"],
+  ["recurrences", "Séries de courses"],
+  ["pending-returns", "Retours dont l’horaire reste inconnu"],
+  ["plans", "Propositions de planning"],
+  ["conversations", "Conversations autorisées"],
+])
+  add("/" + path, "get", summary);
+const writes = [
+  ["/members/{id}/update", "memberInput"],
+  ["/contacts", "contactInput"],
+  ["/contacts/{id}/update", "contactUpdateInput"],
+  ["/shifts", "shiftInput"],
+  ["/drivers/{id}/update", "driverInput"],
+  ["/vehicles/{id}/update", "vehicleUpdateInput"],
+  ["/courses/{id}/update", "courseUpdateInput"],
+  ["/courses/{id}/unassign", "versionInput"],
+  ["/courses/{id}/return", "returnInput"],
+  ["/courses/{id}/delay", "delayInput"],
+  ["/offers", "offerInput"],
+  ["/offers/{id}/claim", "claimInput"],
+  ["/offers/{id}/decision", "decisionInput"],
+  ["/groups/{id}/invite", "companyTargetInput"],
+  ["/groups/{id}/invite-code", "networkCodeInput"],
+  ["/groups/{id}/remove-member", "companyTargetInput"],
+  ["/groups/{id}/messages", "messageInput"],
+  ["/conversations", "conversationInput"],
+  ["/conversations/{id}/messages", "messageInput"],
+  ["/recurrences", "recurrenceInput"],
+  ["/plans/propose", "planInput"],
+  ["/imports/preview", "importInput"],
+  ["/imports/courses", "importInput"],
+];
+for (const [path, body] of writes) add(path, "post", path, body);
+for (const path of [
+  "/network-invitations/{id}/accept",
+  "/notifications/{id}/read",
+  "/alerts/{id}/resolve",
+  "/recurrences/{id}/generate",
+  "/recurrences/{id}/stop",
+  "/plans/{id}/apply",
+])
+  add(path, "post", path);
+for (const path of [
+  "/groups/{id}/members",
+  "/groups/{id}/messages",
+  "/conversations/{id}/messages",
+  "/exports/courses",
+])
+  add(path, "get", path);
+paths["/offers"].get.responses["200"].content["application/json"].schema = {
+  type: "array",
+  items: { $ref: "#/components/schemas/offerOutput" },
+};
+paths["/courses"].get.responses["200"].content["application/json"].schema = {
+  type: "array",
+  items: { $ref: "#/components/schemas/courseOutput" },
+};
+paths["/courses/{id}"].get.responses["200"].content["application/json"].schema =
+  { $ref: "#/components/schemas/courseOutput" };
+for (const [path, properties] of [
+  ["/auth/mfa/enroll", { password: { type: "string", maxLength: 128 } }],
+  ["/auth/mfa/confirm", { code: { type: "string", pattern: "^[0-9]{6}$" } }],
+  [
+    "/auth/mfa/disable",
+    {
+      password: { type: "string", maxLength: 128 },
+      code: { type: "string", pattern: "^[0-9]{6}$" },
+      recovery_code: { type: "string" },
+    },
+  ],
+] as const) {
+  add(path, "post", path);
+  paths[path].post.requestBody = {
+    required: true,
+    content: {
+      "application/json": {
+        schema: { type: "object", properties, additionalProperties: false },
+      },
+    },
+  };
+  paths[path].post.responses["200"] = paths[path].post.responses["201"];
+  delete paths[path].post.responses["201"];
+}
 schemas.Error = {
   type: "object",
   required: ["code"],
@@ -192,14 +306,19 @@ writeFileSync(
       openapi: "3.1.0",
       info: {
         title: "TAXI LINK — prototype fondation",
-        version: "0.1.0",
+        version: "0.2.0",
         description:
-          "Contrat des routes livrées. Inputs stricts générés depuis Zod. Les DTO de sortie détaillés restent à typer avant génération de clients. Données fictives seulement ; documents et production désactivés.",
+          "Contrat des routes livrées. Entrées générées depuis Zod. DTO des courses et des offres explicitement typés, avec projection réseau minimale. Données fictives seulement ; documents et production désactivés.",
       },
       servers: [{ url: "http://localhost:4000/api/v1" }],
       paths,
       components: {
         securitySchemes: {
+          mobileBearer: {
+            type: "http",
+            scheme: "bearer",
+            bearerFormat: "opaque",
+          },
           sessionCookie: { type: "apiKey", in: "cookie", name: "tl_session" },
         },
         schemas,

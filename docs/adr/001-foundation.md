@@ -1,35 +1,39 @@
-# ADR-001 — Premier incrément exécutable
+# Décisions d’architecture — version 0.2
 
-Statut : adopté pour prototype fictif, 3 novembre 2026.
+## 001 — Monolithe modulaire et clients
 
-Le dépôt reçu était vide. Le dossier fourni existe en deux documents Word de contenu identique et deux PDF de consultation, avec un prompt de démarrage. Les documents source restent hors du dépôt public. Les règles métier sont appliquées sans prétendre disposer des fichiers techniques indépendants mentionnés dans le sommaire.
+NestJS, Next.js, Expo/React Native et TypeScript partagé. SQL paramétré via `pg`, migrations versionnées, PostgreSQL 16 réseau ou PGlite pour démonstration locale. Pas d’ORM masquant le contexte RLS. Les entrées sont validées par Zod ; les réponses de courses et d’offres ont des contrats stricts testés. Les nouveaux modules métier résident dans `apps/api/src/modules`.
 
-Choix : monolithe modulaire NestJS + Next.js, TypeScript partagé, SQL paramétré explicite via `pg`. Les schémas Zod sont les contrats d’entrée. Les contrôles d’accès et le planning ne résident pas dans React. Le contrôleur HTTP du socle reste centralisé ; séparer en modules NestJS au lot 2 avant croissance.
+## 002 — Identités distinctes et RLS
 
-Le premier incrément cible la vue web responsive, y compris pour chauffeur. Expo est explicitement reporté, sans dossier natif factice. Aucun abonnement tiers engagé. Les données réelles et toutes les pièces restent bloquées.
+En réseau, deux pools utilisent des identifiants LOGIN sans superuser/BYPASSRLS/CREATEROLE : métier et identité. Les migrations/provisionnements restent au propriétaire. L’API métier n’a aucun SELECT sur utilisateurs/sessions ; la fonction `authenticate_request` vérifie le hash de session et l’appartenance active, verrouille les lignes d’autorisation puis retourne un contexte minimal. Chaque transaction métier fixe `app.tenant_id` et `app.user_id`, sous le rôle sans BYPASSRLS. Les FK composites empêchent les liens de ressources entre entreprises.
 
-Les horaires portent un offset explicite, sont stockés en `timestamptz`, et sont affichés en Europe/Paris. La saisie web porte sur des services de jour ; les créneaux ambigus lors du changement d’heure ne font pas partie du parcours de démonstration. L’API accepte un offset explicite pour lever l’ambiguïté.
+L’identité peut lire les hashes de mots de passe et gérer les sessions, sans lire les courses, contacts, offres ou conversations. Le runtime réseau refuse les identifiants de propriétaire. En mode WASM local, le même moteur est utilisé avec des rôles transactionnels séparés ; ce mode n’accepte pas plusieurs processus.
 
-# ADR-002 — Isolation et accès base
+Les fonctions SECURITY DEFINER ont un search_path fixé, aucune permission PUBLIC et des contrôles explicites. Le runtime ne peut créer d’objets dans public. Aucune route n’accepte de SQL ou un identifiant d’acteur fourni par le client. Audit : insertion et lecture autorisées selon contexte, modification/suppression refusées aux rôles runtime.
 
-Chaque requête vérifie session, membership actif et rôle, puis ouvre une transaction et fixe `app.tenant_id` avec `set_config(..., true)` et `SET LOCAL ROLE taxilink_app`. Les FK composites empêchent de rattacher des ressources d’entreprises différentes. Le rôle métier est sans BYPASSRLS, les tables métier sont sous RLS forcée. Audit : SELECT/INSERT autorisés, UPDATE/DELETE refusés.
+## 003 — Concurrence et partage
 
-Le pool `pg` garde la même connexion jusqu’au commit/rollback et libère ensuite. Le contexte est local à la transaction. La migration est versionnée et verrouillée. Pas d’ORM : SQL transparent au démarrage, responsabilité de maintenir types et migration. PGlite permet des tests RLS reproductibles sans Docker ; PostgreSQL réseau doit aussi être validé par la CI.
+Un verrou global transactionnel précède les autres mutations ; il élimine les deadlocks d’ordre entre deux entreprises et rend les réservations atomiques. Il est volontairement conservateur et devra être remplacé/mesuré avant une charge élevée. Les clés d’idempotence sont liées à l’acteur et à l’entreprise. Les invitations montrent le code brut une seule fois ; le cache de replay ne l’enregistre pas.
 
-**Limite explicite :** le prototype emploie une connexion propriétaire pour l’authentification puis rétrograde son rôle pour le métier. Une injection arbitraire dans le service aurait trop de privilèges. Le pilote exige trois comptes séparés (migrations, identité à permissions étroites, runtime non propriétaire), des procédures d’identité contrôlées, un test sous chaque compte, et aucune possibilité de reset de rôle privilégié depuis le runtime métier. Ce socle est bloqué en démonstration et ne remplace pas cette étape.
+Une offre est unique pour une course et vise un ou plusieurs groupes. Sa projection ne contient ni référence passager, ni identifiant de course/contact, ni nom, téléphone, note ou document. Une réservation bloque les ressources dix minutes au maximum. Le propriétaire confirme ensuite ; l’exécutant reçoit une projection de mission dédiée dans son entreprise. Le fichier de contacts et les documents ne sont pas partagés. Les états de cette mission sont répercutés dans la course propriétaire avec audit. Une révocation coupe les lectures de groupe, tandis qu’une mission confirmée reste autorisée par son attribution explicite.
 
-# ADR-003 — Concurrence et planification
+## 004 — Planification
 
-Une mutation métier verrouille la ligne entreprise (`FOR UPDATE`) avant lecture du planning. Toutes les écritures passent par cette séquence : protection simultanée des courses, chauffeurs et véhicules même avec plusieurs répliques API PostgreSQL. Un index unique interdit deux affectations d’une course ; version optimiste et clé d’idempotence contrôlent les retries. Le verrou est volontairement grossier, acceptable pour prototype ; mesurer avant verrous par ressource.
+Services, pauses, capacité, accessibilité, rendez-vous et marge, temps d’embarquement/dépose, collisions chauffeur/véhicule et trajets de liaison sont contrôlés. Les engagements précédents/suivants et les réservations sont pris en compte. Les changements de véhicule/chauffeur dans un service sont refusés si le passage de relais n’est pas modélisé. Une déclaration de dépôt/service est une donnée d’entrée à valider sur le terrain.
 
-Le validateur utilise une matrice versionnée par fournisseur et validité. Les fixtures sont synthétiques ; route absente/périmée = refus. Contrôles : temps d’embarquement/dépose, marge RDV, services, capacité, PMR, pauses, collisions et déplacements depuis/après les engagements précédents/suivants du chauffeur et du véhicule. Les pauses et transferts sont évalués conservativement : certains plans faisables peuvent être refusés ; aucun override de ces contrôles n’est exposé.
+L’heuristique trie les rendez-vous puis privilégie la charge planifiée la plus faible et la continuité de véhicule. Elle produit un snapshot versionné sans mutation durable, laisse des raisons aux missions non attribuées et exige une confirmation. L’application vérifie le snapshot puis toutes les contraintes dans une transaction. Budget 30 s, lot maximal 500 ; aucun optimum global n’est garanti. Le cache de trajets est synthétique et étiqueté ; une durée absente/périmée n’est jamais inventée.
 
-Les heures d’affectation sont prévisionnelles. Les retards réels, ETA et indisponibilités à chaud ne sont pas gérés par cette tranche. Une transition « terminée » ne libère pas arbitrairement les créneaux du planning ; une annulation les libère. Pas de solveur ni de partage inter-entreprises de missions.
+Un retard crée une alerte et informe le propriétaire d’une mission partagée ; il ne déplace pas automatiquement une course commencée. Les heures sont en UTC en base, Europe/Paris à l’écran. Les récurrences refusent les heures locales ambiguës/inexistantes au changement d’heure et génèrent des occurrences idempotentes.
 
-# ADR-004 — Identité, documents et exploitation
+## 005 — Authentification et secrets
 
-Sessions opaques 256 bits, hash SHA-256 en base, expiration huit heures, cookies HttpOnly/SameSite Strict, CSRF par session, Origin contrôlé et JSON obligatoire sur mutations. Mots de passe scrypt avec sel aléatoire, entrées bornées, limitation locale des tentatives. Les codes d’invitation sont hashés et montrés une fois. L’idempotence n’enregistre jamais leur valeur brute ; un retry retourne seulement l’ID et `token_returned=true`.
+Sessions opaques 256 bits, hash en base, cookies HttpOnly/SameSite Strict sur web, bearer conservé dans SecureStore sur mobile, CSRF et Origin contrôlés, mots de passe scrypt, limitation des tentatives. TOTP RFC 6238, graines chiffrées AES-256-GCM avec clé distincte de la base, compteurs anti-rejeu, codes de récupération hashés à usage unique. L’activation demande le mot de passe et une preuve TOTP, ferme les autres sessions ; désactivation/changement de mot de passe ferment toutes les sessions.
 
-Limites : comptes de démo, email non vérifié, pas de MFA, rate limit mono-processus, HTTPS/cookies Secure à configurer avec l’hébergement retenu, purge sessions/idempotence à industrialiser. Ces limites bloquent le pilote réel. Pas de journalisation des corps, tokens ou erreurs SQL détaillées.
+`setup` crée une configuration privée sans écraser l’existant. Les secrets, clés de signature, sauvegardes et documents source ne sont pas commités. La production requiert HTTPS, une gestion de secrets et une limitation distribuée ; l’email vérifié et la récupération par canal délivré restent à intégrer.
 
-Pas de données médicales, stockage documentaire, NIR, lecture de puce ou CPAM. Le flag documentaire ne peut pas être activé dans cette version. Hébergement, rôles juridiques, DPA, HDS/NIR, AIPD si applicable et conservation demeurent des décisions avant tout traitement réel ; aucune conclusion juridique n’est codée.
+## 006 — Sauvegarde et périmètre
+
+Archives chiffrées scrypt/AES-256-GCM, snapshot sous verrou, vérification d’authenticité avant lecture, restauration transactionnelle dans une base vide de la même version, permissions restaurées et sessions non restaurées. La clé MFA et la phrase de sauvegarde restent hors archive. Le test de restauration fait partie de la suite.
+
+Aucun stockage de pièce médicale, OCR, lecture de puce ou CPAM. Le runtime refuse le mode hors démonstration et l’activation du flag documentaire. Hébergement, contrats, conservation, HDS/NIR et AIPD si applicable restent à établir avant de vraies données. Cette version ne revendique aucune conformité réglementaire ni aptitude à une exploitation médicale réelle.

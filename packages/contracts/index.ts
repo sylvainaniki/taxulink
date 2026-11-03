@@ -3,9 +3,21 @@ export const uuid = z.uuid();
 export const timestamp = z.iso.datetime({ offset: true });
 export const roles = ["admin", "dispatcher", "driver", "viewer"] as const;
 export const loginInput = z
-  .object({ email: z.email().max(254), password: z.string().min(1).max(128) })
+  .object({
+    email: z.email().max(254),
+    password: z.string().min(1).max(128),
+    mfa_code: z
+      .string()
+      .regex(/^\d{6}$/)
+      .optional(),
+    recovery_code: z
+      .string()
+      .regex(/^[A-Fa-f0-9]{8}-?[A-Fa-f0-9]{8}$/)
+      .optional(),
+  })
   .strict();
 export const registerInput = loginInput
+  .omit({ mfa_code: true, recovery_code: true })
   .extend({
     password: z.string().min(16).max(128),
     company: z.string().trim().min(2).max(100),
@@ -48,6 +60,7 @@ export const driverInput = z
 export const courseInput = z
   .object({
     reference: z.string().trim().min(1).max(60),
+    customer_id: uuid.optional(),
     origin: z.string().max(40),
     destination: z.string().max(40),
     pickup_at: timestamp,

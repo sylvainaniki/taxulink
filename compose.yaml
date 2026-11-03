@@ -12,22 +12,39 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
-  api:
+  migrate:
     build: .
-    command: ['sh', '-c', 'npm run db:seed && npm run dev']
+    command: ['node', '--import', 'tsx', 'scripts/provision.ts']
     environment:
+      MIGRATION_DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@db:5432/taxilink
+      API_DB_PASSWORD: ${API_DB_PASSWORD:?Set a 32-character API_DB_PASSWORD}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:?Set a 32-character AUTH_DB_PASSWORD}
       DEMO_MODE: 'true'
       DEMO_PASSWORD: ${DEMO_PASSWORD:?Set DEMO_PASSWORD in .env}
-      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@db:5432/taxilink
+    depends_on:
+      db: {condition: service_healthy}
+  api:
+    build: .
+    environment:
+      DEMO_MODE: 'true'
+      DATABASE_URL: postgresql://taxilink_api:${API_DB_PASSWORD}@db:5432/taxilink
+      AUTH_DATABASE_URL: postgresql://taxilink_auth:${AUTH_DB_PASSWORD}@db:5432/taxilink
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Set a 64-hex-character MFA_ENCRYPTION_KEY}
       WEB_ORIGIN: http://localhost:3000
       REAL_SENSITIVE_DOCUMENTS_ENABLED: 'false'
     ports: ['127.0.0.1:4000:4000']
     depends_on:
-      db: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4000/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
   web:
     build: .
     command: ['npm', 'run', 'start', '-w', '@taxilink/web']
     ports: ['127.0.0.1:3000:3000']
-    depends_on: [api]
+    depends_on:
+      api: {condition: service_healthy}
 volumes:
   postgres_data:

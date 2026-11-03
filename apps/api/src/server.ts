@@ -15,13 +15,29 @@ import {
 } from "./security";
 import { validateAssignment } from "./planning";
 import * as input from "../../../packages/contracts";
+import { operations } from "./modules/operations";
+import {
+  newSecret,
+  encryptSecret,
+  decryptSecret,
+  checkTotp,
+  consumeFactor,
+  recoveryCodes,
+  validMfaKey,
+} from "./mfa";
 export interface Options {
   demo: boolean;
+  mfaKey?: string;
+  authLimit?: number;
   webOrigin?: string;
   secureCookies?: boolean;
 }
 const dummyPassword = passwordHash("dummy-password-never-accepted");
-export async function createApp(db: Database, options: Options) {
+export async function createApp(
+  db: Database,
+  options: Options,
+  identity: Database = db,
+) {
   const limits = new Map<string, { count: number; until: number }>();
   async function audit(
     q: Sql,
@@ -43,17 +59,22 @@ export async function createApp(db: Database, options: Options) {
       v = { count: 0, until: now + 60000 };
       limits.set(k, v);
     }
-    requireThat(++v.count <= 15, 429, "RATE_LIMITED");
+    requireThat(++v.count <= (options.authLimit || 15), 429, "RATE_LIMITED");
     if (limits.size > 10000)
       for (const [id, v] of limits) if (v.until < now) limits.delete(id);
   }
   function cookie(req: Request) {
+    const bearer = req.headers.authorization?.match(
+      /^Bearer ([a-f0-9]{64})$/,
+    )?.[1];
     return (
+      bearer ||
       req.headers.cookie
         ?.split(";")
         .map((x) => x.trim())
         .find((x) => x.startsWith("tl_session="))
-        ?.slice(11) || ""
+        ?.slice(11) ||
+      ""
     );
   }
   function setCookie(res: Response, value: string, maxAge: number) {
@@ -99,7 +120,9 @@ export async function createApp(db: Database, options: Options) {
       return res.json({ status: "ok", demo: options.demo, documents: false });
     if (
       req.method === "POST" &&
-      (path === "/auth/register" || path === "/auth/login")
+      (path === "/auth/register" ||
+        path === "/auth/login" ||
+        path === "/auth/mobile-login")
     ) {
       limited(req);
       if (path === "/auth/register") {
@@ -107,7 +130,10 @@ export async function createApp(db: Database, options: Options) {
         const data = input.registerInput.parse(req.body);
         const user = randomUUID(),
           tenant = randomUUID();
-        const result = await db.transaction(async (q) => {
+        const result = await identity.transaction(async (q) => {
+          await q.query(
+            "SELECT id FROM collaboration_lock WHERE id=1 FOR UPDATE",
+          );
           requireThat(
             !(
               await q.query("SELECT 1 FROM users WHERE email=$1", [
@@ -137,29 +163,52 @@ export async function createApp(db: Database, options: Options) {
         return res.status(201).json({ csrf: result.csrf, tenant_id: tenant });
       }
       const data = input.loginInput.parse(req.body);
-      const user = (
-        await db.query("SELECT * FROM users WHERE email=$1", [
-          data.email.toLowerCase(),
-        ])
-      ).rows[0];
-      const valid = verifyPassword(
-        data.password,
-        user?.password_hash || dummyPassword,
-      );
-      requireThat(user && valid, 401, "INVALID_CREDENTIALS");
-      const result = await db.transaction((q) => issueSession(q, user.id));
+      const result = await identity.transaction(async (q) => {
+        await q.query(
+          "SELECT id FROM collaboration_lock WHERE id=1 FOR UPDATE",
+        );
+        const user = (
+          await q.query("SELECT * FROM users WHERE email=$1 FOR UPDATE", [
+            data.email.toLowerCase(),
+          ])
+        ).rows[0];
+        const valid = verifyPassword(
+          data.password,
+          user?.password_hash || dummyPassword,
+        );
+        requireThat(user && valid, 401, "INVALID_CREDENTIALS");
+        if (user.mfa_secret)
+          await consumeFactor(
+            q,
+            user,
+            data.mfa_code,
+            data.recovery_code,
+            options.mfaKey,
+          );
+        return issueSession(q, user.id);
+      });
+      if (path === "/auth/mobile-login")
+        return res.json({ csrf: result.csrf, token: result.raw });
       setCookie(res, result.raw, 8 * 3600);
       return res.json({ csrf: result.csrf });
     }
     if (path === "/auth/me" && req.method === "GET") {
-      const s = await session(db, req);
+      const s = await session(identity, req);
       const memberships = (
-        await db.query(
+        await identity.query(
           "SELECT m.tenant_id,m.role,t.name FROM memberships m JOIN tenants t ON t.id=m.tenant_id WHERE m.user_id=$1 AND m.active",
           [s.user_id],
         )
       ).rows;
+      const mfa = (
+        await identity.query(
+          "SELECT mfa_secret IS NOT NULL AS enabled FROM users WHERE id=$1",
+          [s.user_id],
+        )
+      ).rows[0];
       return res.json({
+        mfa_enabled: mfa.enabled,
+        mfa_available: validMfaKey(options.mfaKey),
         id: s.user_id,
         email: s.email,
         csrf: s.csrf,
@@ -168,9 +217,9 @@ export async function createApp(db: Database, options: Options) {
       });
     }
     if (path === "/auth/logout" && req.method === "POST") {
-      const s = await session(db, req);
+      const s = await session(identity, req);
       requireThat(req.headers["x-csrf-token"] === s.csrf, 403, "CSRF_DENIED");
-      await db.query("DELETE FROM sessions WHERE token_hash=$1", [
+      await identity.query("DELETE FROM sessions WHERE token_hash=$1", [
         hash(cookie(req)),
       ]);
       setCookie(res, "", 0);
@@ -178,7 +227,10 @@ export async function createApp(db: Database, options: Options) {
     }
     if (path === "/invitations/accept" && req.method === "POST") {
       const data = input.acceptInput.parse(req.body);
-      const result = await db.transaction(async (q) => {
+      const result = await identity.transaction(async (q) => {
+        await q.query(
+          "SELECT id FROM collaboration_lock WHERE id=1 FOR UPDATE",
+        );
         const s = await session(q, req);
         requireThat(req.headers["x-csrf-token"] === s.csrf, 403, "CSRF_DENIED");
         const invitation = (
@@ -224,20 +276,162 @@ export async function createApp(db: Database, options: Options) {
       });
       return res.json(result);
     }
+    if (path.startsWith("/auth/mfa/") && req.method === "POST") {
+      limited(req);
+      const result = await identity.transaction(async (q) => {
+        await q.query(
+          "SELECT id FROM collaboration_lock WHERE id=1 FOR UPDATE",
+        );
+        const s = await session(q, req);
+        requireThat(req.headers["x-csrf-token"] === s.csrf, 403, "CSRF_DENIED");
+        const user = (
+          await q.query("SELECT * FROM users WHERE id=$1 FOR UPDATE", [
+            s.user_id,
+          ])
+        ).rows[0];
+        if (path === "/auth/mfa/enroll") {
+          const d = z
+            .object({ password: z.string().min(1).max(128) })
+            .strict()
+            .parse(req.body);
+          requireThat(
+            verifyPassword(d.password, user.password_hash),
+            401,
+            "INVALID_CREDENTIALS",
+          );
+          requireThat(!user.mfa_secret, 409, "MFA_ALREADY_ENABLED");
+          requireThat(validMfaKey(options.mfaKey), 503, "MFA_UNAVAILABLE");
+          const secret = newSecret();
+          await q.query(
+            "UPDATE users SET mfa_pending=$1,mfa_pending_until=now()+interval '10 minutes' WHERE id=$2",
+            [encryptSecret(secret, options.mfaKey!), s.user_id],
+          );
+          return {
+            secret,
+            otpauth_uri:
+              "otpauth://totp/TAXILINK:" +
+              encodeURIComponent(s.email) +
+              "?secret=" +
+              secret +
+              "&issuer=TAXILINK&algorithm=SHA1&digits=6&period=30",
+          };
+        }
+        if (path === "/auth/mfa/confirm") {
+          const d = z
+            .object({ code: z.string().regex(/^\d{6}$/) })
+            .strict()
+            .parse(req.body);
+          requireThat(
+            user.mfa_pending &&
+              new Date(user.mfa_pending_until).getTime() > Date.now(),
+            409,
+            "MFA_ENROLLMENT_EXPIRED",
+          );
+          const secret = decryptSecret(user.mfa_pending, options.mfaKey),
+            counter = checkTotp(secret, d.code, null);
+          requireThat(counter !== null, 401, "MFA_INVALID");
+          const codes = recoveryCodes();
+          await q.query(
+            "UPDATE users SET mfa_secret=mfa_pending,mfa_pending=NULL,mfa_pending_until=NULL,mfa_last_counter=$1,recovery_hashes=$2 WHERE id=$3",
+            [
+              counter,
+              JSON.stringify(codes.map((c) => hash(c.replace(/-/g, "")))),
+              s.user_id,
+            ],
+          );
+          await q.query(
+            "DELETE FROM sessions WHERE user_id=$1 AND token_hash<>$2",
+            [s.user_id, hash(cookie(req))],
+          );
+          return { enabled: true, recovery_codes: codes };
+        }
+        if (path === "/auth/mfa/disable") {
+          const d = z
+            .object({
+              password: z.string().max(128),
+              code: z
+                .string()
+                .regex(/^\d{6}$/)
+                .optional(),
+              recovery_code: z
+                .string()
+                .regex(/^[A-Fa-f0-9]{8}-?[A-Fa-f0-9]{8}$/)
+                .optional(),
+            })
+            .strict()
+            .parse(req.body);
+          requireThat(
+            user.mfa_secret && verifyPassword(d.password, user.password_hash),
+            401,
+            "INVALID_CREDENTIALS",
+          );
+          await consumeFactor(q, user, d.code, d.recovery_code, options.mfaKey);
+          await q.query(
+            "UPDATE users SET mfa_secret=NULL,mfa_pending=NULL,mfa_pending_until=NULL,mfa_last_counter=NULL,recovery_hashes='[]'::jsonb WHERE id=$1",
+            [s.user_id],
+          );
+          await q.query("DELETE FROM sessions WHERE user_id=$1", [s.user_id]);
+          return { enabled: false };
+        }
+        throw new Fault(404, "NOT_FOUND");
+      });
+      if (result.enabled === false) setCookie(res, "", 0);
+      return res.json(result);
+    }
+    if (path === "/auth/change-password" && req.method === "POST") {
+      const d = z
+        .object({
+          old_password: z.string().max(128),
+          new_password: z.string().min(16).max(128),
+        })
+        .strict()
+        .parse(req.body);
+      await identity.transaction(async (q) => {
+        await q.query(
+          "SELECT id FROM collaboration_lock WHERE id=1 FOR UPDATE",
+        );
+        const s = await session(q, req);
+        requireThat(req.headers["x-csrf-token"] === s.csrf, 403, "CSRF_DENIED");
+        const u = (
+          await q.query(
+            "SELECT password_hash FROM users WHERE id=$1 FOR UPDATE",
+            [s.user_id],
+          )
+        ).rows[0];
+        requireThat(
+          verifyPassword(d.old_password, u.password_hash),
+          401,
+          "INVALID_CREDENTIALS",
+        );
+        await q.query("UPDATE users SET password_hash=$1 WHERE id=$2", [
+          passwordHash(d.new_password),
+          s.user_id,
+        ]);
+        await q.query("DELETE FROM sessions WHERE user_id=$1", [s.user_id]);
+      });
+      setCookie(res, "", 0);
+      return res.json({ ok: true });
+    }
     const tenant = input.uuid.parse(req.headers["x-tenant-id"]);
     const result = await db.transaction(async (q) => {
-      const s = await session(q, req);
-      const membership = (
+      await q.query("SET LOCAL ROLE taxilink_app");
+      if (write)
         await q.query(
-          "SELECT role FROM memberships WHERE tenant_id=$1 AND user_id=$2 AND active FOR SHARE",
-          [tenant, s.user_id],
-        )
-      ).rows[0];
-      requireThat(membership, 403, "ACCESS_DENIED");
-      const role = membership.role;
+          "SELECT id FROM collaboration_lock WHERE id=1 FOR UPDATE",
+        );
+      const s = (
+        await q.query("SELECT authenticate_request($1,$2) AS data", [
+          hash(cookie(req)),
+          tenant,
+        ])
+      ).rows[0].data;
+      requireThat(s, 401, "SESSION_REQUIRED");
+      requireThat(s.role, 403, "ACCESS_DENIED");
+      const role = s.role;
       if (write)
         requireThat(req.headers["x-csrf-token"] === s.csrf, 403, "CSRF_DENIED");
       await q.query("SELECT set_config('app.tenant_id',$1,true)", [tenant]);
+      await q.query("SELECT set_config('app.user_id',$1,true)", [s.user_id]);
       await q.query("SET LOCAL ROLE taxilink_app");
       const manage = () =>
         requireThat(
@@ -273,6 +467,17 @@ export async function createApp(db: Database, options: Options) {
         }
       }
       async function dispatch(): Promise<any> {
+        const extra = await operations(q, {
+          path,
+          method: req.method,
+          body: req.body,
+          query: req.query,
+          tenant,
+          user: s.user_id,
+          role,
+          audit,
+        });
+        if (extra) return extra.value;
         if (req.method === "GET") {
           if (path === "/locations")
             return (await q.query("SELECT * FROM locations ORDER BY label"))
@@ -428,8 +633,17 @@ export async function createApp(db: Database, options: Options) {
             manage();
             const d = input.courseInput.parse(req.body);
             const id = randomUUID();
+            const customer = d.customer_id
+              ? (
+                  await q.query(
+                    "SELECT name,phone FROM contacts WHERE id=$1 AND kind='customer'",
+                    [d.customer_id],
+                  )
+                ).rows[0]
+              : null;
+            requireThat(!d.customer_id || customer, 404, "NOT_FOUND");
             await q.query(
-              "INSERT INTO courses(id,tenant_id,reference,origin,destination,pickup_at,appointment_at,arrival_buffer,passengers,accessible) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+              "INSERT INTO courses(id,tenant_id,reference,origin,destination,pickup_at,appointment_at,arrival_buffer,passengers,accessible,customer_id,passenger_name,passenger_phone) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
               [
                 id,
                 tenant,
@@ -441,6 +655,9 @@ export async function createApp(db: Database, options: Options) {
                 d.arrival_buffer,
                 d.passengers,
                 d.accessible,
+                d.customer_id || null,
+                customer?.name || "",
+                customer?.phone || "",
               ],
             );
             await audit(q, tenant, s.user_id, "course.created", id);
@@ -473,6 +690,12 @@ export async function createApp(db: Database, options: Options) {
                 ])
               ).rows[0];
             requireThat(driver && vehicle, 404, "NOT_FOUND");
+            requireThat(
+              !(await q.query("SELECT course_has_live_offer($1) AS live", [id]))
+                .rows[0].live,
+              409,
+              "COURSE_OFFERED",
+            );
             const times = await validateAssignment(q, course, driver, vehicle);
             await q.query(
               "INSERT INTO assignments VALUES($1,$2,$3,$4,$5,$6,$7)",
@@ -491,6 +714,11 @@ export async function createApp(db: Database, options: Options) {
               [id],
             );
             await audit(q, tenant, s.user_id, "course.assigned", id);
+            if (driver.user_id)
+              await q.query(
+                "INSERT INTO notifications(id,tenant_id,user_id,kind,object_id) VALUES($1,$2,$3,'course.assigned',$4)",
+                [randomUUID(), tenant, driver.user_id, id],
+              );
             return { id, status: "assigned", version: d.version + 1 };
           }
           if (/^\/courses\/[a-f0-9-]+\/status$/.test(path)) {
@@ -523,6 +751,12 @@ export async function createApp(db: Database, options: Options) {
               allowed[c.status]?.includes(d.status),
               409,
               "INVALID_TRANSITION",
+            );
+            requireThat(
+              !(await q.query("SELECT course_has_live_offer($1) AS live", [id]))
+                .rows[0].live,
+              409,
+              "COURSE_OFFERED",
             );
             await q.query(
               "UPDATE courses SET status=$1,version=version+1 WHERE id=$2",
@@ -564,6 +798,29 @@ export async function createApp(db: Database, options: Options) {
             fields: error.issues.map((i) => i.path.join(".")),
           });
         const code = (error as any)?.code;
+        if (code === "P0001") {
+          const allowed = [
+            "ACCESS_DENIED",
+            "NOT_FOUND",
+            "INVITATION_INVALID",
+            "OFFER_UNAVAILABLE",
+            "OFFER_NOT_PUBLISHABLE",
+            "PLAN_STALE",
+            "INVALID_DECISION",
+            "INVALID_TRANSITION",
+          ];
+          const message = (error as Error).message;
+          if (allowed.includes(message))
+            return res
+              .status(
+                message === "NOT_FOUND"
+                  ? 404
+                  : message === "ACCESS_DENIED"
+                    ? 403
+                    : 409,
+              )
+              .json({ code: message });
+        }
         if (code === "23503")
           return res.status(400).json({ code: "REFERENCE_INVALID" });
         if (code === "23505") return res.status(409).json({ code: "CONFLICT" });
