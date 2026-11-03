@@ -159,20 +159,24 @@ export default function Page() {
     return m;
   }
   useEffect(() => {
-    const match = window.location.hash.match(
-      /^#(reset|verify)=([a-f0-9]{64})$/,
-    );
-    if (match) {
-      setAccountAction({
-        kind: match[1] as "reset" | "verify",
-        token: match[2],
-      });
-      window.history.replaceState(
-        null,
-        "",
-        window.location.pathname + window.location.search,
+    const consumeAccountLink = () => {
+      const match = window.location.hash.match(
+        /^#(reset|verify)=([a-f0-9]{64})$/,
       );
-    }
+      if (match) {
+        setAccountAction({
+          kind: match[1] as "reset" | "verify",
+          token: match[2],
+        });
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search,
+        );
+      }
+    };
+    consumeAccountLink();
+    window.addEventListener("hashchange", consumeAccountLink);
     loadIdentity()
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -181,6 +185,7 @@ export default function Page() {
     window.addEventListener("offline", off);
     window.addEventListener("online", on);
     return () => {
+      window.removeEventListener("hashchange", consumeAccountLink);
       window.removeEventListener("offline", off);
       window.removeEventListener("online", on);
     };
@@ -416,6 +421,7 @@ export default function Page() {
   if (accountAction)
     return (
       <AccountRecovery
+        key={accountAction.kind + (accountAction.token || "")}
         {...accountAction}
         close={() => window.location.assign("/")}
       />
