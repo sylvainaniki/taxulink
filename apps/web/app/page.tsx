@@ -1,5 +1,11 @@
 "use client";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  cloneElement,
+  type FormEvent,
+  type ReactElement,
+} from "react";
 type Row = Record<string, any>;
 const status: Record<string, string> = {
   unassigned: "À attribuer",
@@ -287,12 +293,21 @@ export default function Page() {
     });
   }
   const loc = (id: string) => locations.find((l) => l.id === id)?.label || id;
-  const field = (label: string, child: ReactNode) => (
-    <label className="field">
-      {label}
-      {child}
-    </label>
-  );
+  const field = (label: string, child: ReactElement<{ id?: string }>) => {
+    const id =
+      "field-" +
+      label
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-");
+    return (
+      <div className="field">
+        <label htmlFor={id}>{label}</label>
+        {cloneElement(child, { id })}
+      </div>
+    );
+  };
   const locationSelect = (name: string) => (
     <select name={name} required>
       {locations.map((l) => (
