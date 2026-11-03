@@ -1,0 +1,45 @@
+{
+  "name": "taxilink",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "node --import tsx apps/api/src/main.ts",
+    "dev:web": "npm run dev -w apps/web",
+    "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
+    "build": "npm run build -w apps/web",
+    "lint": "prettier --check apps packages tests db docs/adr README.md",
+    "format": "prettier --write apps packages tests db docs/adr README.md",
+    "db:migrate": "node --import tsx apps/api/src/migrate.ts",
+    "db:seed": "node --import tsx apps/api/src/seed.ts",
+    "contract:generate": "node --import tsx packages/contracts/generate.ts && prettier --write packages/contracts/openapi.json",
+    "test:e2e": "node --env-file=.env tests/e2e.mjs"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.3.14",
+    "@nestjs/common": "12.3.2",
+    "@nestjs/core": "12.3.2",
+    "@nestjs/platform-express": "12.3.2",
+    "express": "5.1.0",
+    "pg": "8.16.3",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.3",
+    "@types/node": "24.7.2",
+    "@types/pg": "8.15.5",
+    "light-my-request": "6.6.0",
+    "playwright": "1.62.1",
+    "prettier": "3.6.2",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}
