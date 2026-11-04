@@ -535,8 +535,12 @@ export async function createApp(
         if (extra) return extra.value;
         if (req.method === "GET") {
           if (path === "/locations")
-            return (await q.query("SELECT * FROM locations ORDER BY label"))
-              .rows;
+            return (
+              await q.query(
+                `SELECT l.* FROM locations l WHERE l.tenant_id IS NULL OR $1 IN ('admin','dispatcher') OR ($1='driver' AND (EXISTS(SELECT 1 FROM drivers d WHERE d.user_id=$2 AND l.id IN (d.start_location,d.end_location)) OR EXISTS(SELECT 1 FROM courses c JOIN assignments a ON a.course_id=c.id JOIN drivers d ON d.id=a.driver_id WHERE d.user_id=$2 AND c.status NOT IN ('completed','cancelled','failed','no_show') AND l.id IN (c.origin,c.destination)))) ORDER BY l.label`,
+                [role, s.user_id],
+              )
+            ).rows;
           if (path === "/drivers")
             return (
               await q.query(

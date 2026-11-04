@@ -2454,3 +2454,22 @@ test("address search validates dedicated input before calling the provider and r
     await f.service.close();
   }
 });
+
+test("private location directories exclude unassigned driver and viewer access", async () => {
+  const f = await pilotFixture();
+  try {
+    const id = await privateLocation(f, "Entrée privée fictive");
+    assert.ok((await f.call("/locations")).body.some((v: any) => v.id === id));
+    for (const role of ["viewer", "driver"]) {
+      await db.query(
+        "UPDATE memberships SET role=$1 WHERE tenant_id=$2 AND user_id=$3",
+        [role, f.tenant, f.user],
+      );
+      const list = await f.call("/locations");
+      assert.equal(list.status, 200);
+      assert.ok(!list.body.some((v: any) => v.id === id));
+    }
+  } finally {
+    await f.service.close();
+  }
+});
