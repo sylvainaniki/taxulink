@@ -25,7 +25,7 @@
     "setup": "node --import tsx scripts/init-env.ts",
     "doctor": "node --env-file-if-exists=.env --import tsx scripts/doctor.ts",
     "start:hosted": "node scripts/start-hosted.mjs",
-    "scalingo-postbuild": "npm run build"
+    "scalingo-postbuild": "node --import tsx scripts/scalingo-preflight.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.3.14",
@@ -53,6 +53,6 @@
     "typescript": "5.9.3"
   },
   "engines": {
-    "node": ">=22.18"
+    "node": ">=24.22.1 <25"
   }
 }
