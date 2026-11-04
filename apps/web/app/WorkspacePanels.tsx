@@ -15,6 +15,7 @@ import RoutingPanel from "./RoutingPanel";
 import TransfersPanel from "./TransfersPanel";
 type Row = Record<string, any>;
 type Props = {
+  demo?: boolean;
   tab: string;
   tenant: string;
   date: string;
@@ -901,7 +902,9 @@ export default function WorkspacePanels(p: Props) {
                   )}
                 >
                   {field(
-                    "Nom ou immatriculation fictive",
+                    p.demo !== false
+                      ? "Nom ou immatriculation fictive"
+                      : "Nom ou immatriculation",
                     <input
                       name="label"
                       defaultValue={v.label}
@@ -973,18 +976,16 @@ export default function WorkspacePanels(p: Props) {
             locations={p.locations}
           />
           <h2>Clients, établissements et partenaires</h2>
-          <aside className="demo-note">
-            <strong>Pièces du dossier patient</strong>
-            <p>
-              Bons de transport (BT) et, au besoin, photo de la mutuelle
-              uniquement.
-            </p>
-            <p>
-              Le dépôt de fichiers est indisponible dans cette démonstration.
-            </p>
-          </aside>
+          <p>
+            Les BT et photos de mutuelle sont gérés indépendamment, hors de
+            TAXILINK.
+          </p>
           <details>
-            <summary>＋ Ajouter une fiche fictive</summary>
+            <summary>
+              {p.demo !== false
+                ? "＋ Ajouter une fiche fictive"
+                : "＋ Ajouter une fiche"}
+            </summary>
             <form onSubmit={submit((d) => post("/contacts", d))}>
               {field(
                 "Nom de la fiche",
@@ -993,7 +994,11 @@ export default function WorkspacePanels(p: Props) {
               {field(
                 "Catégorie de fiche",
                 <select name="kind">
-                  <option value="customer">Client / patient fictif</option>
+                  <option value="customer">
+                    {p.demo !== false
+                      ? "Client / patient fictif"
+                      : "Client / patient"}
+                  </option>
                   <option value="facility">Établissement</option>
                   <option value="partner">Partenaire</option>
                 </select>,

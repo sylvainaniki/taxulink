@@ -125,7 +125,7 @@ Voir [docs/validation.md](docs/validation.md), [docs/adr/001-foundation.md](docs
 
 Restent la qualification terrain du routage IGN, la configuration et la qualification de la délivrabilité SMTP externe, les notifications push/email externes, la recette sur appareils, les tests de charge distribuée, les procédures d’exploitation et l’audit de sécurité. Le fournisseur d’hébergement et les prérequis RGPD/HDS/NIR doivent être validés pour les données visées. Les uploads de pièces médicales, OCR/puce et intégrations CPAM sont absents et ne peuvent pas être activés par un simple flag.
 
-Le démarrage exige `DEMO_MODE=true` et refuse `REAL_SENSITIVE_DOCUMENTS_ENABLED=true`. Le pilote d’exploitation réel n’est donc pas déclaré terminé. Les fonctions V2 (paiements SaaS, portail établissements/patients, facturation B2, pooling, EV/solveur avancé) ne sont pas comprises dans cette démonstration.
+La démo conserve `DEMO_MODE=true`. Un mode pilote distinct est préparé avec `OPERATIONAL_PILOT_ENABLED=true`, PostgreSQL à accès restreints, HTTPS, cookies sécurisés, SMTP TLS et vérification d’email obligatoires ; les dépôts de documents restent fermés. Ce mode ne certifie pas l’hébergement et l’exploitation réelle n’est pas déclarée terminée. Voir [la préparation Scalingo](docs/scalingo-pilot.md). Les fonctions V2 (paiements SaaS, portail établissements/patients, facturation B2, pooling, EV/solveur avancé) ne sont pas comprises dans cette démonstration.
 
 ## Pilote privé de 10 utilisateurs
 
@@ -137,4 +137,6 @@ L’inscription publique est fermée par défaut. Un administrateur crée une in
 
 ### Pièces du dossier patient
 
-Périmètre V1 : bons de transport (BT), en PDF ou photo, et photo de mutuelle si nécessaire. Les catégories carte Vitale, dossier clinique, attestation de droits et document libre sont exclues. Le contrat préparatoire refuse ces catégories et les PDF pour la mutuelle. Le dépôt de fichiers reste fermé sur la démonstration hébergée ; ce changement ne constitue pas une activation pour données réelles.
+Le pilote retenu ne stocke ni BT ni photos de mutuelle. Ces documents sont gérés indépendamment, hors de TAXILINK. Les routes documentaires restent fermées. L’ancien contrat préparatoire BT/mutuelle est conservé pour une éventuelle évolution distincte, sans activation.
+
+Le pilote retenu gère plusieurs entreprises indépendantes sur un serveur commun ; les BT et photos de mutuelle sont entièrement gérés hors de TAXILINK. Aucune synchronisation Google Drive n’est activée.

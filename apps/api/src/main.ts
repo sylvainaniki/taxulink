@@ -1,3 +1,4 @@
+import { runtimePolicy } from "./runtime-policy";
 import {
   connect,
   migrate,
@@ -13,10 +14,7 @@ import { deliverNotification, pushFromEnv } from "./deliveries";
 import { validMfaKey } from "./mfa";
 import { accountMailFromEnv, deliverAccountMail } from "./mail";
 async function main() {
-  const demo = process.env.DEMO_MODE === "true";
-  if (!demo) throw new Error("Prototype only: DEMO_MODE=true is required.");
-  if (process.env.REAL_SENSITIVE_DOCUMENTS_ENABLED === "true")
-    throw new Error("Sensitive documents cannot be enabled.");
+  const { demo } = runtimePolicy(process.env);
   let db: Database, identity: Database;
   if (process.env.DATABASE_URL) {
     if (!process.env.AUTH_DATABASE_URL)

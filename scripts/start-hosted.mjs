@@ -12,8 +12,13 @@ for (const key of [
 }
 if (!process.env.WEB_ORIGIN.startsWith("https://"))
   throw new Error("Hosted origin must use HTTPS");
-if (process.env.DEMO_MODE !== "true")
-  throw new Error("Only synthetic demonstration is supported");
+if (
+  process.env.DEMO_MODE !== "true" &&
+  process.env.OPERATIONAL_PILOT_ENABLED !== "true"
+)
+  throw new Error(
+    "An explicitly enabled operational pilot or synthetic demonstration is required",
+  );
 const port = Number(process.env.PORT || 10000);
 if (!Number.isInteger(port) || port < 1 || port > 65535 || port === 4000)
   throw new Error("Invalid public port");
@@ -23,6 +28,10 @@ const env = {
   REAL_SENSITIVE_DOCUMENTS_ENABLED: "false",
 };
 // Migration access belongs to a separate one-off provisioning step.
+delete env.SCALINGO_POSTGRESQL_URL;
+delete env.BOOTSTRAP_ADMIN_EMAIL;
+delete env.BOOTSTRAP_ADMIN_PASSWORD;
+delete env.BOOTSTRAP_COMPANY;
 delete env.MIGRATION_DATABASE_URL;
 delete env.API_DB_PASSWORD;
 delete env.AUTH_DB_PASSWORD;

@@ -80,6 +80,7 @@ export default function Page() {
   const [accessPolicy, setAccessPolicy] = useState<Row>({
     public_registration_enabled: false,
   });
+  const demoMode = accessPolicy.demo_mode !== false;
   const [courses, setCourses] = useState<Row[]>([]),
     [customers, setCustomers] = useState<Row[]>([]),
     [drivers, setDrivers] = useState<Row[]>([]),
@@ -189,7 +190,18 @@ export default function Page() {
     consumeAccountLink();
     window.addEventListener("hashchange", consumeAccountLink);
     void api("/auth/policy")
-      .then(setAccessPolicy)
+      .then((policy) => {
+        setAccessPolicy(policy);
+        if (policy.demo_mode === false)
+          setDate(
+            new Intl.DateTimeFormat("sv-SE", {
+              timeZone: "Europe/Paris",
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            }).format(new Date()),
+          );
+      })
       .catch(() => {});
     loadIdentity()
       .catch(() => {})
@@ -516,7 +528,11 @@ export default function Page() {
             <b>03</b>
             <span>Accompagner</span>
           </div>
-          <small>Version de démonstration · Données fictives uniquement</small>
+          <small>
+            {demoMode
+              ? "Version de démonstration · Données fictives uniquement"
+              : "Pilote privé · Accès sur invitation"}
+          </small>
         </section>
         <section className="login-form">
           <p className="eyebrow">VOTRE ESPACE DE TRAVAIL</p>
@@ -639,13 +655,15 @@ export default function Page() {
               )}
             </form>
           )}
-          <aside className="demo-note">
-            Comptes de démo : <strong>admin@atlas.example</strong> ou{" "}
-            <strong>driver@atlas.example</strong>. Mot de passe défini au
-            démarrage dans DEMO_PASSWORD.
-            <br />
-            Planning initial : 4 novembre 2026.
-          </aside>
+          {demoMode && (
+            <aside className="demo-note">
+              Comptes de démo : <strong>admin@atlas.example</strong> ou{" "}
+              <strong>driver@atlas.example</strong>. Mot de passe défini au
+              démarrage dans DEMO_PASSWORD.
+              <br />
+              Planning initial : 4 novembre 2026.
+            </aside>
+          )}
         </section>
       </main>
     );
@@ -764,7 +782,9 @@ export default function Page() {
             {offline ? "Hors connexion" : "Espace connecté"}{" "}
             <small>· Europe/Paris</small>
           </span>
-          <span className="demo-badge">DÉMONSTRATION</span>
+          <span className="demo-badge">
+            {demoMode ? "DÉMONSTRATION" : "PILOTE PRIVÉ"}
+          </span>
           <button
             className="mobile-exit quiet"
             title="Déconnexion"
@@ -1273,6 +1293,7 @@ export default function Page() {
             "Compte",
           ].includes(tab) && (
             <WorkspacePanels
+              demo={demoMode}
               tab={tab}
               tenant={tenant}
               date={date}
@@ -1301,8 +1322,11 @@ export default function Page() {
           )}
           <footer>
             {" "}
-            T A X I L I N K <span>·</span> Données fictives uniquement{" "}
-            <span>·</span> Documents médicaux désactivés
+            T A X I L I N K <span>·</span>{" "}
+            {demoMode
+              ? "Données fictives uniquement"
+              : "Espace professionnel privé"}{" "}
+            <span>·</span> Documents gérés hors de TAXILINK
           </footer>
         </main>
       </div>
@@ -1370,7 +1394,7 @@ export default function Page() {
                 {(modal === "course" || modal === "edit") && (
                   <>
                     {field(
-                      "Référence fictive",
+                      demoMode ? "Référence fictive" : "Référence de la course",
                       <input
                         autoFocus
                         name="reference"
@@ -1383,7 +1407,7 @@ export default function Page() {
                       />,
                     )}
                     {field(
-                      "Client / patient fictif",
+                      demoMode ? "Client / patient fictif" : "Client / patient",
                       <select
                         name="customer"
                         defaultValue={
@@ -1497,7 +1521,7 @@ export default function Page() {
                 {modal === "driver" && (
                   <>
                     {field(
-                      "Nom fictif",
+                      demoMode ? "Nom fictif" : "Nom",
                       <input
                         name="name"
                         required

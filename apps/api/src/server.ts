@@ -143,6 +143,8 @@ export async function createApp(
     }
     if (req.method === "GET" && path === "/auth/policy")
       return res.json({
+        demo_mode: options.demo,
+        documents_enabled: false,
         public_registration_enabled:
           options.demo && (options.publicRegistration ?? true),
         invitation_join_enabled: true,
