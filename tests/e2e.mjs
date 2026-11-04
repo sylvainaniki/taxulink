@@ -159,8 +159,8 @@ try {
     .waitFor({ timeout: 10000 });
   await owner.route("**/api/v1/auth/me", (route) => route.abort());
   await owner.evaluate(() => window.dispatchEvent(new Event("online")));
-  const networkError = owner.getByText("Connexion au serveur impossible.", {
-    exact: true,
+  const networkError = owner.getByRole("alert").filter({
+    hasText: "Connexion au serveur impossible.",
   });
   await networkError.waitFor();
   await owner.unroute("**/api/v1/auth/me");
