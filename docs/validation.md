@@ -28,6 +28,8 @@ Les captures restent des artefacts internes de test ; aucune validation visuelle
 
 ## Limites à conserver
 
+L’incrément de synchronisation du 4 novembre ajoute un parcours navigateur entre une session de régulation et une session chauffeur : affectation reçue par actualisation automatique, remontée des statuts, reconnexion et retour dans l’application sans rechargement, puis disparition de l’erreur réseau après rétablissement. Les contrôles locaux passent (81 tests, TypeScript, formatage, compilation web) ; le résultat de ce parcours supplémentaire est celui de la CI du commit concerné.
+
 - Pas de test Android/iOS sur appareil, d’APK signé, de publication store ou de déploiement utilisateur.
 - Compose est validé sur le runner Linux CI ; les paramètres et performances d’un futur hébergement ne sont pas qualifiés.
 - Pas de pentest, de charge multi-répliques, de routage réel, de livraison SMTP/push vers un destinataire externe ou de recette métier clinique.

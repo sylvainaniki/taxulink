@@ -46,6 +46,7 @@ Les comptes utilisent le `DEMO_PASSWORD` choisi lors du premier seed. Un chauffe
 - Fiches de clients/patients **fictifs**, établissements et partenaires, liées aux courses sans diagnostic.
 - Courses, modifications versionnées, affectation/désaffectation, statuts, annulation, signalement de retard, séries récurrentes et retours à heure connue ou à confirmer.
 - Planning journalier, filtres et propositions de répartition équilibrées en durée de travail. Aucune proposition n’est appliquée sans confirmation ; une proposition périmée est refusée.
+- Actualisation du planning toutes les 15 secondes, à la reconnexion réseau et au retour dans l’application. Une affectation ou un statut modifié dans une session devient visible dans les autres sessions autorisées sans recharger la page. Une connexion au serveur commun reste nécessaire.
 - Groupes privés : invitation par code entreprise, acceptation, liste et retrait des membres.
 - Bourse : publication dans plusieurs groupes, DTO minimal sans identité, réservation concurrente unique, blocage des ressources, confirmation/rejet par le propriétaire, retrait et expiration. Le partenaire reçoit ensuite une projection opérationnelle de sa mission, sans le fichier de contacts du propriétaire.
 - Messagerie de groupe, directe et liée à une mission ; participants et permissions contrôlés à chaque lecture/écriture.

@@ -4,7 +4,7 @@ Adresse de démonstration : https://taxilink-demo.onrender.com
 
 ## Vérifications effectuées
 
-- 75 tests locaux, TypeScript, formatage et compilation web réussis pour l’incrément d’exploitation. CI du commit 51a226c verte : https://github.com/sylvainaniki/taxulink/actions/runs/41797892249 (PGlite, PostgreSQL, Docker, navigateur, mobile).
+- 81 tests locaux réussis le 4 novembre ; TypeScript, formatage et compilation web réussis après ajout de l’actualisation au retour dans l’application. La CI complète précédente du commit 5082ae3 est verte : https://github.com/sylvainaniki/taxulink/actions/runs/41823194655 (PGlite, PostgreSQL, Docker, navigateur, mobile). Le résultat navigateur du nouvel incrément doit être lu sur sa propre CI.
 - Connexion Atlas, création et affectation d’une mission, rechargement avec conservation des données.
 - Recherche et enregistrement de lieux publics : Place du Capitole et Hôpital Purpan, Toulouse.
 - Calcul routier IGN dans les deux sens, source explicitement affichée : 22 min / 5,1 km dans un sens et 21 min / 5,8 km dans l’autre lors de l’essai, marge de 25 % incluse. Ces valeurs ne sont pas des garanties pour une course future.
@@ -34,6 +34,6 @@ Inscription publique fermée par défaut, création de compte par invitation nom
 | Routage des tournées complètes et contraintes terrain                        | Parcours de deux points publics testé ; qualification terrain restante                  |
 | Revue de sécurité indépendante et procédures d’incident                      | Non réalisées                                                                           |
 | APK signé / distribution native                                              | Non livré ; PWA web installable disponible                                              |
-| BT et photos de mutuelle réels                                               | Dépôt désactivé ; stockage et conditions d’exploitation à valider                       |
+| BT et photos de mutuelle réels                                               | Hors périmètre ; gestion indépendante, aucun stockage dans TAXILINK                     |
 
 Les offres gratuites peuvent interrompre le service après inactivité ou quota. Ce document ne déclare pas une version d’exploitation médicale finale. La saisie manuelle des données ne remplace pas les validations et contrats nécessaires. Aucun changement de variable ne doit être présenté comme une certification ou une recette.

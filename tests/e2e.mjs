@@ -100,6 +100,72 @@ try {
   }
   const owner = await signedIn("admin@atlas.example"),
     buyer = await signedIn("admin@horizon.example");
+  // The chauffeur's independent session must receive a dispatcher's change
+  // without navigating, clicking refresh, or seeing the other company's data.
+  await owner.getByRole("button", { name: "＋ Nouvelle course" }).click();
+  await owner.getByLabel("Référence fictive").fill("DEMO-E2E-SYNC");
+  await owner.getByLabel("Prise en charge (Paris)").fill("16:00");
+  await owner.getByLabel("Rendez-vous (Paris)").fill("17:00");
+  await owner.getByRole("button", { name: "Confirmer →" }).click();
+  const sharedRow = owner
+    .locator("article.course")
+    .filter({ hasText: "DEMO-E2E-SYNC" });
+  await sharedRow.getByRole("button", { name: "Attribuer →" }).click();
+  const linkedChauffeur = owner.getByLabel("Chauffeur", { exact: true });
+  const linkedChauffeurId = await linkedChauffeur
+    .locator("option")
+    .filter({ hasText: "Camille 1" })
+    .getAttribute("value");
+  await linkedChauffeur.selectOption(linkedChauffeurId);
+  await owner
+    .getByLabel("Véhicule", { exact: true })
+    .selectOption({ index: 1 });
+  await owner.getByRole("button", { name: "Confirmer →" }).click();
+  await sharedRow.getByText("Attribuée", { exact: true }).waitFor();
+  const chauffeurRow = page
+    .locator("article.course")
+    .filter({ hasText: "DEMO-E2E-SYNC" });
+  await chauffeurRow
+    .getByText("Attribuée", { exact: true })
+    .waitFor({ timeout: 25000 });
+  assert.equal(
+    await buyer.getByText("DEMO-E2E-SYNC", { exact: true }).count(),
+    0,
+  );
+  await chauffeurRow
+    .getByRole("button", { name: "En approche", exact: true })
+    .click();
+  // A network reconnection refreshes immediately instead of waiting for polling.
+  await owner.evaluate(() => window.dispatchEvent(new Event("online")));
+  await sharedRow
+    .getByText("En approche", { exact: true })
+    .waitFor({ timeout: 10000 });
+  // A returning tab must also refresh, even if its polling timer was suspended.
+  await chauffeurRow
+    .getByRole("button", { name: "À bord", exact: true })
+    .click();
+  await owner.evaluate(() =>
+    document.dispatchEvent(new Event("visibilitychange")),
+  );
+  await sharedRow
+    .getByText("À bord", { exact: true })
+    .waitFor({ timeout: 10000 });
+  await chauffeurRow
+    .getByRole("button", { name: "Terminer", exact: true })
+    .click();
+  await owner.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await sharedRow
+    .getByText("Terminée", { exact: true })
+    .waitFor({ timeout: 10000 });
+  await owner.route("**/api/v1/auth/me", (route) => route.abort());
+  await owner.evaluate(() => window.dispatchEvent(new Event("online")));
+  const networkError = owner.getByText("Connexion au serveur impossible.", {
+    exact: true,
+  });
+  await networkError.waitFor();
+  await owner.unroute("**/api/v1/auth/me");
+  await owner.evaluate(() => window.dispatchEvent(new Event("online")));
+  await networkError.waitFor({ state: "hidden", timeout: 10000 });
   await owner.getByRole("button", { name: "＋ Nouvelle course" }).click();
   await owner.getByLabel("Référence fictive").fill("DEMO-E2E-NET");
   await owner.getByLabel("Prise en charge (Paris)").fill("10:00");
@@ -278,7 +344,7 @@ try {
   await recoveryContext.close();
   assert.deepEqual(failures, []);
   console.log(
-    "E2E passed: login, tenant boundary, create/assign/complete, mobile overflow, logout, driver role, private marketplace/owner confirmation, cross-company group chat, proposal/apply planning.",
+    "E2E passed: login, tenant boundary, create/assign/complete, mobile overflow, logout, driver role, cross-session dispatch/status synchronization, reconnect/resume, private marketplace/owner confirmation, cross-company group chat, proposal/apply planning.",
   );
 } finally {
   await browser.close();

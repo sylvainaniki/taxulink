@@ -298,20 +298,32 @@ export default function Page() {
       .finally(() => {
         if (current) setLoading(false);
       });
-    const timer = setInterval(
-      () =>
-        refresh()
-          .then((x) => {
-            if (current) acceptRefresh(x);
-          })
-          .catch((e) => {
-            if (current) setError(e.message);
-          }),
-      15000,
-    );
+    const sync = () => {
+      if (!current) return;
+      void refresh()
+        .then((x) => {
+          if (current && x) {
+            acceptRefresh(x);
+            setError((previous) => (previous === "NETWORK" ? "" : previous));
+          }
+        })
+        .catch((e) => {
+          if (current) setError(e.message);
+        });
+    };
+    const resume = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+    const timer = setInterval(sync, 15000);
+    window.addEventListener("online", sync);
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", resume);
     return () => {
       current = false;
       clearInterval(timer);
+      window.removeEventListener("online", sync);
+      window.removeEventListener("focus", resume);
+      document.removeEventListener("visibilitychange", resume);
     };
   }, [tenant, date, membership?.role]);
   async function act(fn: () => Promise<void>) {
