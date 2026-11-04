@@ -1425,8 +1425,8 @@ export default function Page() {
                       Véhicule adapté PMR requis
                     </label>
                     <p className="hint">
-                      Date : {date}. Les adresses et temps de route sont fictifs
-                      dans cette démonstration.
+                      Date : {date}. Vérifiez les coordonnées et les durées de
+                      trajet dans Contacts avant l’affectation.
                     </p>
                   </>
                 )}

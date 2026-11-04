@@ -1,6 +1,6 @@
 # Démonstration sur Render et Neon
 
-Configuration préparée, pas encore déployée ni validée sur ces fournisseurs.
+Démonstration déployée le 4 novembre 2026 sur https://taxilink-demo.onrender.com. Les 14 migrations sont appliquées sur Neon à Francfort. Les parcours de connexion, création, affectation, rechargement, géocodage et calcul routier de deux lieux publics ont été vérifiés. Cela ne valide pas un hébergement pour des données médicales réelles.
 
 Le Blueprint `render.yaml` sélectionne explicitement le plan gratuit et un service Docker unique. Next.js écoute sur le port public fourni par Render ; l’API écoute seulement sur la boucle locale. Les données utilisent exclusivement PostgreSQL distant : aucun PGlite ni stockage local éphémère n’est accepté par ce démarrage. Les cookies HTTPS sont obligatoires.
 
@@ -14,7 +14,7 @@ Produire ensuite deux URL de connexion TLS distinctes : `DATABASE_URL` utilise t
 
 Importer le Blueprint depuis la branche codex/foundation-planning du dépôt GitHub. Vérifier le choix Free et l’absence de service payant. Renseigner les deux URL runtime, WEB_ORIGIN égal à l’origine HTTPS réelle du service, et une MFA_ENCRYPTION_KEY unique de 64 caractères hexadécimaux. Le port public est fourni par Render.
 
-Aucun SMTP, push, routage externe ou document médical n’est activé. Une période d’inactivité peut arrêter le service gratuit ; les tâches d’envoi ne fonctionnent pas pendant cette période. Le premier accès peut être lent. Les enregistrements sont conservés dans Neon selon ses quotas gratuits, à surveiller séparément. Tester la consommation mémoire du service combiné sur les 512 Mo du plan gratuit avant de le considérer viable.
+SMTP et push externes restent non configurés et les documents médicaux sont bloqués. Le géocodage et le calcul routier IGN sont disponibles avec confirmation dans l’interface. Une période d’inactivité peut arrêter le service gratuit ; les tâches d’envoi ne fonctionnent pas pendant cette période. Le premier accès peut être lent. Les enregistrements sont conservés dans Neon selon ses quotas gratuits, à surveiller séparément. Tester la consommation mémoire du service combiné sur les 512 Mo du plan gratuit avant de le considérer viable.
 
 ## Recette avant partage
 

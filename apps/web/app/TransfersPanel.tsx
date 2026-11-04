@@ -43,7 +43,7 @@ export default function TransfersPanel({
       await action();
       await reload();
       setRequests(await api("/transfers"));
-      setNotice("Décision enregistrée.");
+      setNotice("Opération enregistrée.");
     } catch (err) {
       const code = (err as Error).message;
       setError(

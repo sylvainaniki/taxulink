@@ -54,6 +54,10 @@ const messages: Row = {
   AMBIGUOUS_LOCAL_TIME: "Cette heure locale est ambiguë.",
   CONFLICT: "Une opération identique existe déjà.",
   NETWORK: "Connexion au serveur impossible.",
+  ROUTE_UNAVAILABLE:
+    "Trajet absent ou périmé : calculez les durées dans Contacts.",
+  RESOURCE_UNAVAILABLE:
+    "Le chauffeur ou le véhicule est indisponible sur ce créneau.",
   CSV_HEADERS_INVALID: "Colonnes CSV incorrectes. Utilisez le modèle proposé.",
   SHIFT_OVERLAP: "Ce chauffeur a déjà un service sur cette période.",
   COURSE_FROZEN:

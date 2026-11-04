@@ -47,7 +47,7 @@ Les comptes utilisent le `DEMO_PASSWORD` choisi lors du premier seed. Un chauffe
 - Notifications in-app, alertes opérationnelles, statistiques, import CSV avec aperçu/dédoublonnage et export protégé contre les formules.
 - Sauvegardes chiffrées, restauration dans une base vide avec conservation des ACL et invalidation des anciennes sessions.
 
-La matrice routière et les adresses sont **synthétiques**. Un itinéraire absent/périmé bloque l’affectation. Les contrôles portent sur les horaires, marges, capacités, pauses, collisions et liaisons. Un changement de binôme chauffeur/véhicule au cours du même service est refusé si sa remise n’est pas modélisée.
+Les lieux et trajets initiaux sont synthétiques. Depuis Contacts, vous pouvez aussi saisir des lieux manuellement, rechercher adresses/lieux publics via IGN, puis calculer leurs trajets routiers. Sans URL OSRM configurée, le démarrage active IGN BD TOPO / Valhalla (désactivable par ROUTING_ENABLED=false) : calcul statique, sans trafic temps réel, marge de 25 %, cache de six heures et lots de deux à quatre lieux. Le calcul externe doit être confirmé dans l’interface ; les noms de patients ne sont jamais envoyés au fournisseur de routage. Les points et entrées doivent être vérifiés par l’utilisateur. Les comptes, passagers et missions de démonstration doivent rester fictifs. Un itinéraire absent/périmé bloque l’affectation. Les contrôles portent sur les horaires, marges, capacités, pauses, collisions et liaisons. Un changement de binôme chauffeur/véhicule au cours du même service est refusé si sa remise n’est pas modélisée.
 
 La répartition est une heuristique déterministe et équilibrée, pas un solveur garantissant l’optimum global. Lot maximal : 500 courses et budget de calcul de 30 secondes avec explications pour les missions restantes. Les listes de courses/contacts sont bornées à 500, exports à 10 000 et imports à 100 lignes.
 
@@ -123,6 +123,6 @@ Voir [docs/validation.md](docs/validation.md), [docs/adr/001-foundation.md](docs
 
 ## Avant une exploitation réelle
 
-Restent la sélection et l’intégration d’un routage réel, la configuration et la qualification de la délivrabilité SMTP externe, les notifications push/email externes, la recette sur appareils, les tests de charge distribuée, les procédures d’exploitation et l’audit de sécurité. Le fournisseur d’hébergement et les prérequis RGPD/HDS/NIR doivent être validés pour les données visées. Les uploads de pièces médicales, OCR/puce et intégrations CPAM sont absents et ne peuvent pas être activés par un simple flag.
+Restent la qualification terrain du routage IGN, la configuration et la qualification de la délivrabilité SMTP externe, les notifications push/email externes, la recette sur appareils, les tests de charge distribuée, les procédures d’exploitation et l’audit de sécurité. Le fournisseur d’hébergement et les prérequis RGPD/HDS/NIR doivent être validés pour les données visées. Les uploads de pièces médicales, OCR/puce et intégrations CPAM sont absents et ne peuvent pas être activés par un simple flag.
 
 Le démarrage exige `DEMO_MODE=true` et refuse `REAL_SENSITIVE_DOCUMENTS_ENABLED=true`. Le pilote d’exploitation réel n’est donc pas déclaré terminé. Les fonctions V2 (paiements SaaS, portail établissements/patients, facturation B2, pooling, EV/solveur avancé) ne sont pas comprises dans cette démonstration.
