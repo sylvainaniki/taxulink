@@ -53,7 +53,10 @@ async function main() {
     },
     identity,
   );
-  await app.listen(Number(process.env.PORT || 4000), "0.0.0.0");
+  await app.listen(
+    Number(process.env.PORT || 4000),
+    process.env.API_HOST || "0.0.0.0",
+  );
   let delivering = false;
   const mailTimer =
     mail || push

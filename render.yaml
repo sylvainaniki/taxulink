@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: taxilink-demo
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: codex/foundation-planning
+    dockerfilePath: ./Dockerfile.render
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DEMO_MODE
+        value: "true"
+      - key: REAL_SENSITIVE_DOCUMENTS_ENABLED
+        value: "false"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: AUTH_DATABASE_URL
+        sync: false
+      - key: WEB_ORIGIN
+        sync: false
+      - key: MFA_ENCRYPTION_KEY
+        sync: false
