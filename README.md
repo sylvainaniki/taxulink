@@ -134,3 +134,7 @@ Le serveur limite le pilote à 10 personnes actives distinctes, tous rôles et e
 L’inscription publique est fermée par défaut. Un administrateur crée une invitation dans Membres, puis transmet le code au destinataire. Celui-ci choisit « J’ai une invitation » sur la connexion, saisit l’adresse invitée, un mot de passe et le code. Le compte rejoint directement l’entreprise avec le rôle prévu. Les codes expirent après 48 h et sont révocables et utilisables une seule fois. Un utilisateur déjà inscrit se connecte puis accepte l’invitation dans son espace. La réactivation d’un compte respecte aussi le plafond.
 
 `PUBLIC_REGISTRATION_ENABLED=true` réactive uniquement la création d’entreprises dans un environnement de démonstration ; le plafond reste appliqué. L’hébergement actuel reste réservé aux données fictives selon les limites de `docs/release-readiness.md`.
+
+### Pièces du dossier patient
+
+Périmètre V1 : bons de transport (BT), en PDF ou photo, et photo de mutuelle si nécessaire. Les catégories carte Vitale, dossier clinique, attestation de droits et document libre sont exclues. Le contrat préparatoire refuse ces catégories et les PDF pour la mutuelle. Le dépôt de fichiers reste fermé sur la démonstration hébergée ; ce changement ne constitue pas une activation pour données réelles.

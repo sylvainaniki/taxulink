@@ -4,6 +4,7 @@ import * as models from "./index";
 import * as extended from "./extended";
 import * as account from "./account";
 import * as pilot from "./pilot";
+import { documentUploadInput } from "./documents";
 import { searchInput } from "../../apps/api/src/geocoding";
 const schemas: Record<string, any> = {};
 for (const name of [
@@ -24,6 +25,7 @@ for (const name of [
   schemas[name] = json;
 }
 for (const [name, schema] of Object.entries({
+  documentUploadInput,
   ...extended,
   ...account,
   ...pilot,

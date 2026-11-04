@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { documentUploadInput } from "../../../../packages/contracts/documents";
 import type { Sql } from "../db";
 import type { Context } from "./operations";
 import { sanitizeDocument, type DocumentService } from "../documents";
@@ -21,30 +22,7 @@ export async function documentOperations(
     );
   if (method === "POST" && path === "/documents") {
     manage();
-    const d = z
-      .object({
-        course_id: z.uuid().optional(),
-        contact_id: z.uuid().optional(),
-        kind: z.enum([
-          "prescription",
-          "rights",
-          "vitale_photo",
-          "insurance",
-          "approval",
-          "other",
-        ]),
-        title: z.string().trim().min(2).max(80),
-        mime: z.enum(["application/pdf", "image/png", "image/jpeg"]),
-        content: z
-          .string()
-          .max(1400000)
-          .regex(/^[A-Za-z0-9+/]+={0,2}$/),
-        synthetic: z.literal(true),
-        expires_at: z.iso.datetime({ offset: true }).optional(),
-      })
-      .strict()
-      .refine((v) => v.course_id || v.contact_id)
-      .parse(body);
+    const d = documentUploadInput.parse(body);
     const original = Buffer.from(d.content, "base64");
     requireThat(
       original.toString("base64") === d.content,

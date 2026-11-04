@@ -973,6 +973,16 @@ export default function WorkspacePanels(p: Props) {
             locations={p.locations}
           />
           <h2>Clients, établissements et partenaires</h2>
+          <aside className="demo-note">
+            <strong>Pièces du dossier patient</strong>
+            <p>
+              Bons de transport (BT) et, au besoin, photo de la mutuelle
+              uniquement.
+            </p>
+            <p>
+              Le dépôt de fichiers est indisponible dans cette démonstration.
+            </p>
+          </aside>
           <details>
             <summary>＋ Ajouter une fiche fictive</summary>
             <form onSubmit={submit((d) => post("/contacts", d))}>
