@@ -6,6 +6,7 @@ import {
   type Database,
 } from "./db";
 import { createApp } from "./server";
+import { ignRouting } from "./ign-routing";
 import { ignGeocoder } from "./geocoding";
 import { routingFromEnv } from "./routing";
 import { deliverNotification, pushFromEnv } from "./deliveries";
@@ -47,7 +48,10 @@ async function main() {
       webOrigin: process.env.WEB_ORIGIN,
       secureCookies: process.env.COOKIE_SECURE === "true",
       mail,
-      routing: routingFromEnv(),
+      routing:
+        process.env.ROUTING_ENABLED === "false"
+          ? undefined
+          : routingFromEnv() || ignRouting(),
       geocoding:
         process.env.GEOCODING_ENABLED === "false" ? undefined : ignGeocoder(),
       push,

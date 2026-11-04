@@ -515,6 +515,7 @@ export async function operations(
               seats: z.number().int().min(1).max(8),
               accessible: z.boolean(),
               active: z.boolean(),
+              start_location: z.string().min(1).max(40).optional(),
             })
             .strict()
             .parse(body);
@@ -542,12 +543,29 @@ export async function operations(
       );
     } else {
       const v = data as Row;
+      if (v.start_location)
+        requireThat(
+          (
+            await read(q, "SELECT id FROM locations WHERE id=$1", [
+              v.start_location,
+            ])
+          ).length,
+          404,
+          "NOT_FOUND",
+        );
       requireThat(
         (
           await read(
             q,
-            "UPDATE vehicles SET label=$1,seats=$2,accessible=$3,active=$4 WHERE id=$5 RETURNING id",
-            [v.label, v.seats, v.accessible, v.active, id],
+            "UPDATE vehicles SET label=$1,seats=$2,accessible=$3,active=$4,start_location=COALESCE($5,start_location) WHERE id=$6 RETURNING id",
+            [
+              v.label,
+              v.seats,
+              v.accessible,
+              v.active,
+              v.start_location || null,
+              id,
+            ],
           )
         ).length,
         404,

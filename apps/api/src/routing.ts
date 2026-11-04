@@ -2,6 +2,7 @@ import { Fault, requireThat } from "./security";
 import type { Sql, Row } from "./db";
 export interface RoutingProvider {
   name: string;
+  maxPoints?: number;
   matrix(
     points: { id: string; latitude: number; longitude: number }[],
   ): Promise<{ minutes: number | null; distance_m: number | null }[][]>;
@@ -92,7 +93,7 @@ export async function refreshRoutes(
 ) {
   const unique = [...new Set(ids)];
   requireThat(
-    unique.length >= 1 && unique.length <= 20,
+    unique.length >= 1 && unique.length <= (provider.maxPoints || 20),
     400,
     "ROUTING_BATCH_INVALID",
   );

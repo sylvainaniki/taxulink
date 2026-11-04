@@ -38,3 +38,11 @@ La distribution native Expo exige toujours une configuration de signature et un 
 Dans Contacts, recherche explicite d’adresses françaises et de lieux publics via IGN Géoplateforme (BAN / BD TOPO), avec sélection puis confirmation des coordonnées et d’un secteur public. La saisie manuelle reste disponible. Seul le champ de recherche dédié est envoyé au fournisseur ; aucune fiche patient n’est envoyée automatiquement. L’enregistrement d’un lieu ne garantit pas un itinéraire exploitable et n’active pas de fournisseur de routage.
 
 Cette évolution ne constitue pas une validation pour des données médicales réelles : le pilote doit encore disposer de comptes nominatifs, d’un routage qualifié, d’une sauvegarde d’exploitation testée, d’une revue de sécurité et de conditions d’hébergement/traitement adaptées aux données prévues.
+
+## Parcours d’exploitation du planning
+
+Dans Contacts, le calcul de trajets IGN relie de deux à quatre points confirmés par lot. Seules les coordonnées sont envoyées, sans identité ; les durées statiques sont majorées de 25 %, stockées six heures et identifiées par leur fournisseur. Une erreur ne produit aucune durée de remplacement. Le fournisseur est limité à une matrice simultanée par processus et espace les requêtes. Les déploiements multi-instances exigent une limite distribuée avant montée en charge.
+
+La position de départ du véhicule peut être configurée dans Équipe & flotte, avec contrôle de propriété du lieu. Optimisation permet une recherche bornée avec fenêtres horaires et replanification des missions non commencées hors délai de gel. Notifications permet de demander puis d’approuver/refuser un relais, sans modifier l’affectation avant validation serveur.
+
+Le routage ne donne pas une garantie de circulation ni du trafic en temps réel. Le service public peut limiter les requêtes ou ne pas fournir d’itinéraire ; une recette géographique réelle reste nécessaire. Le passage aux données médicales réelles n’est toujours pas validé par ces fonctions.

@@ -8404,16 +8404,46 @@
         "additionalProperties": false
       },
       "planInput": {
-        "type": "object",
-        "properties": {
-          "date": {
-            "type": "string",
-            "format": "date",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              }
+            },
+            "required": ["date"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "strategy": {
+                "type": "string",
+                "const": "search"
+              },
+              "replan": {
+                "default": false,
+                "type": "boolean"
+              },
+              "max_seconds": {
+                "default": 3,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              }
+            },
+            "required": ["date", "strategy", "replan", "max_seconds"],
+            "additionalProperties": false
           }
-        },
-        "required": ["date"],
-        "additionalProperties": false
+        ]
       },
       "recurrenceInput": {
         "type": "object",
@@ -8695,7 +8725,6 @@
             "type": "boolean"
           },
           "start_location": {
-            "default": "loc-0",
             "type": "string",
             "minLength": 1,
             "maxLength": 40
@@ -8704,13 +8733,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "label",
-          "seats",
-          "accessible",
-          "start_location",
-          "active"
-        ],
+        "required": ["label", "seats", "accessible", "active"],
         "additionalProperties": false
       },
       "versionInput": {

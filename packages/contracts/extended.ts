@@ -49,7 +49,10 @@ export const shiftInput = z
   .object({ driver_id: uuid, shift: driverInput })
   .strict();
 export const vehicleUpdateInput = vehicleInput
-  .extend({ active: z.boolean() })
+  .extend({
+    active: z.boolean(),
+    start_location: z.string().min(1).max(40).optional(),
+  })
   .strict();
 export const courseUpdateInput = z
   .object({ course: courseInput, version: z.number().int().positive() })
@@ -60,7 +63,17 @@ export const versionInput = z
 export const delayInput = z
   .object({ minutes: z.number().int().min(1).max(240) })
   .strict();
-export const planInput = z.object({ date: z.iso.date() }).strict();
+export const planInput = z.union([
+  z.object({ date: z.iso.date() }).strict(),
+  z
+    .object({
+      date: z.iso.date(),
+      strategy: z.literal("search"),
+      replan: z.boolean().default(false),
+      max_seconds: z.number().int().min(1).max(10).default(3),
+    })
+    .strict(),
+]);
 export const contactUpdateInput = z
   .object({ contact: contactInput, version: z.number().int().positive() })
   .strict();

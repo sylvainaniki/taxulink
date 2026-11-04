@@ -2473,3 +2473,43 @@ test("private location directories exclude unassigned driver and viewer access",
     await f.service.close();
   }
 });
+
+test("a vehicle departure point can be updated to an owned location but never a foreign location", async () => {
+  const f = await pilotFixture(),
+    other = await pilotFixture();
+  try {
+    const id = await f.vehicleAt(),
+      own = await privateLocation(f, "Dépôt propre fictif"),
+      foreign = await privateLocation(other, "Dépôt étranger fictif");
+    const body = {
+      label: "Véhicule de test",
+      seats: 4,
+      accessible: false,
+      active: true,
+      start_location: own,
+    };
+    assert.equal((await f.call(`/vehicles/${id}/update`, body)).status, 201);
+    assert.equal(
+      (await f.call("/vehicles")).body.find((v: any) => v.id === id)
+        .start_location,
+      own,
+    );
+    assert.equal(
+      (
+        await f.call(`/vehicles/${id}/update`, {
+          ...body,
+          start_location: foreign,
+        })
+      ).status,
+      404,
+    );
+    assert.equal(
+      (await f.call("/vehicles")).body.find((v: any) => v.id === id)
+        .start_location,
+      own,
+    );
+  } finally {
+    await f.service.close();
+    await other.service.close();
+  }
+});

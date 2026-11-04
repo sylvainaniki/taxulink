@@ -385,6 +385,7 @@ export async function pilotOperations(
     return value({
       available: Boolean(options.routing),
       provider: options.routing?.name || null,
+      max_points: options.routing?.maxPoints || 20,
       traffic: "static",
       quota: 50,
       usage:

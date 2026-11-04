@@ -11,6 +11,8 @@ import { parseCsv, encodeCsv } from "../../../packages/contracts/csv";
 import { parisDateTime } from "../../../packages/contracts/dates";
 import { field } from "./Fields";
 import AddressBook from "./AddressBook";
+import RoutingPanel from "./RoutingPanel";
+import TransfersPanel from "./TransfersPanel";
 type Row = Record<string, any>;
 type Props = {
   tab: string;
@@ -890,6 +892,7 @@ export default function WorkspacePanels(p: Props) {
                       seats: Number(d.seats),
                       accessible: d.accessible === "on",
                       active: d.active === "on",
+                      start_location: d.start_location,
                     }),
                   )}
                 >
@@ -933,6 +936,19 @@ export default function WorkspacePanels(p: Props) {
                     Les changements sont bloqués si le véhicule a des missions
                     ou réservations engagées.
                   </p>
+                  {field(
+                    "Position de départ du véhicule",
+                    <select
+                      name="start_location"
+                      defaultValue={v.start_location}
+                    >
+                      {p.locations.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </select>,
+                  )}
                   <button disabled={busy}>Enregistrer le véhicule</button>
                 </form>
               ))}
@@ -945,6 +961,11 @@ export default function WorkspacePanels(p: Props) {
             key={p.tenant}
             api={p.api}
             reload={p.reload}
+            locations={p.locations}
+          />
+          <RoutingPanel
+            key={p.tenant + "-routing"}
+            api={p.api}
             locations={p.locations}
           />
           <h2>Clients, établissements et partenaires</h2>
@@ -1009,8 +1030,8 @@ export default function WorkspacePanels(p: Props) {
             courses impossibles sont laissées sans chauffeur avec leurs motifs.
           </p>
           <p className="hint">
-            Le calcul utilise la matrice de trajets fictifs de la démonstration.
-            Il propose des affectations, sans les appliquer.
+            Le calcul utilise les trajets enregistrés et refuse les trajets
+            absents ou périmés. Il propose des affectations, sans les appliquer.
           </p>
           <button
             disabled={busy}
@@ -1023,6 +1044,25 @@ export default function WorkspacePanels(p: Props) {
           >
             Calculer une proposition
           </button>
+          <form
+            onSubmit={submit(
+              (d) =>
+                post("/plans/propose", {
+                  date: p.date,
+                  strategy: "search",
+                  replan: d.replan === "on",
+                  max_seconds: 5,
+                }),
+              "Recherche terminée. Examinez la proposition avant de l’appliquer.",
+            )}
+          >
+            <h3>Recherche avec fenêtres horaires</h3>
+            <label className="check">
+              <input name="replan" type="checkbox" />
+              Réorganiser aussi les missions non commencées, hors délai de gel.
+            </label>
+            <button disabled={busy}>Chercher une meilleure répartition</button>
+          </form>
           {(data["/plans"] || []).map((plan: Row) => (
             <article key={plan.id} className="plan-card">
               <h3>Proposition du {when(plan.created_at)}</h3>
@@ -1432,6 +1472,17 @@ export default function WorkspacePanels(p: Props) {
       )}
       {p.tab === "Notifications" && (
         <>
+          {(manage || p.role === "driver") && (
+            <TransfersPanel
+              key={p.tenant}
+              api={p.api}
+              reload={p.reload}
+              courses={p.courses}
+              drivers={p.drivers}
+              vehicles={p.vehicles}
+              manage={manage}
+            />
+          )}
           <div className="panel padded">
             <h2>Canaux de notification</h2>
             <p>
