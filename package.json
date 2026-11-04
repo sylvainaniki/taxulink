@@ -7,6 +7,8 @@
     "apps/mobile"
   ],
   "scripts": {
+    "start": "node --env-file-if-exists=.env --import tsx scripts/start-local.ts",
+    "dev:local": "node --env-file-if-exists=.env --import tsx scripts/start-local.ts --dev",
     "dev": "node --import tsx apps/api/src/main.ts",
     "dev:web": "npm run dev -w apps/web",
     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",

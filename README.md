@@ -10,17 +10,19 @@ Node.js 24 recommandé, minimum 22.18.
 npm ci
 npm run setup
 npm run doctor
-node --env-file=.env --import tsx apps/api/src/seed.ts
-node --env-file=.env --import tsx apps/api/src/main.ts
+npm run build
+npm start
 ```
 
-Dans un deuxième terminal :
+Pour travailler sur le code sans compilation préalable :
 
 ```bash
-npm run dev:web
+npm run dev:local
 ```
 
 Ouvrir http://localhost:3000. Le script `setup` crée `.env` avec des secrets locaux uniques et les permissions `0600`. Il refuse de remplacer une configuration existante. Lire son `DEMO_PASSWORD` localement ; ne pas publier ce fichier. Le code public ne contient aucun mot de passe d’utilisation réelle.
+
+`npm start` lance la préparation idempotente des données fictives, attend que l’API réponde, puis lance l’interface compilée. `npm run dev:local` utilise la même procédure avec rechargement de l’interface pendant le développement. Ctrl+C arrête les deux services ; une erreur de l’un arrête l’autre. Le lanceur refuse les ports déjà occupés, les connexions PostgreSQL et les réglages d’un pilote hébergé. Les services écoutent uniquement sur l’ordinateur local ; ce mode ne partage pas le planning entre plusieurs téléphones. Le serveur commun multi-entreprises utilise le démarrage hébergé distinct.
 
 `npm run doctor` lit la configuration locale et regroupe les erreurs de démarrage, clés, accès sur invitation, connexions PostgreSQL et paramètres SMTP sans afficher leurs valeurs. `npm run doctor -- --json` produit un résultat exploitable par un outil ; le code de sortie vaut 1 si un contrôle échoue, 0 sinon. Il ne contacte aucun service, n’envoie aucun email et ne modifie pas la base. Ce diagnostic ne vérifie pas les droits effectifs PostgreSQL, la délivrabilité, la restauration des sauvegardes ou les conditions d’exploitation réelle. Pour une plateforme hébergée, il utilise les variables de son environnement ; ne pas y transférer le `.env` de démonstration.
 
