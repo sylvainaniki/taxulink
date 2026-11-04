@@ -9,6 +9,7 @@ Node.js 24 recommandé, minimum 22.18.
 ```bash
 npm ci
 npm run setup
+npm run doctor
 node --env-file=.env --import tsx apps/api/src/seed.ts
 node --env-file=.env --import tsx apps/api/src/main.ts
 ```
@@ -20,6 +21,8 @@ npm run dev:web
 ```
 
 Ouvrir http://localhost:3000. Le script `setup` crée `.env` avec des secrets locaux uniques et les permissions `0600`. Il refuse de remplacer une configuration existante. Lire son `DEMO_PASSWORD` localement ; ne pas publier ce fichier. Le code public ne contient aucun mot de passe d’utilisation réelle.
+
+`npm run doctor` lit la configuration locale et regroupe les erreurs de démarrage, clés, accès sur invitation, connexions PostgreSQL et paramètres SMTP sans afficher leurs valeurs. `npm run doctor -- --json` produit un résultat exploitable par un outil ; le code de sortie vaut 1 si un contrôle échoue, 0 sinon. Il ne contacte aucun service, n’envoie aucun email et ne modifie pas la base. Ce diagnostic ne vérifie pas les droits effectifs PostgreSQL, la délivrabilité, la restauration des sauvegardes ou les conditions d’exploitation réelle. Pour une plateforme hébergée, il utilise les variables de son environnement ; ne pas y transférer le `.env` de démonstration.
 
 Deux entreprises fictives, **Atlas Démo** et **Horizon Démo**, sont préparées avec chacune deux chauffeurs, deux véhicules et quatre courses. Date initiale du planning : **4 novembre 2026**, heure de Paris. Le seed est idempotent et ne réinitialise pas les comptes existants.
 

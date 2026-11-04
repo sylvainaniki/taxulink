@@ -22,6 +22,8 @@ Sur 30 jours, région standard : deux conteneurs M de 512 Mo à 14,40 € HT cha
 
 ## Avant ouverture aux utilisateurs réels
 
+Exécuter `npm run doctor` avec les variables applicatives du pilote (ou `npm run doctor -- --json` pour un résultat structuré). Corriger tous les contrôles en échec avant le démarrage. Ce contrôle reste hors ligne : il ne prouve ni la disponibilité des services, ni leurs permissions réelles, ni la conformité du déploiement.
+
 Vérifier : validation d’email et récupération ; MFA des administrateurs ; rôles et séparation entre deux sociétés ; sauvegarde automatique et restauration dans une base isolée ; absence d’identifiants privilégiés dans le runtime ; journaux sans données sensibles ; quotas routage ; tests simultanés ; mémoire des deux instances ; procédure de révocation et d’incident. Le serveur ne doit pas être présenté comme prêt avant ces validations.
 
 Les sauvegardes quotidiennes/PITR du fournisseur sont à contrôler dans le compte. Le CLI `scripts/backup.ts` existe pour des exports chiffrés ; un fichier écrit dans un conteneur éphémère n’est pas une sauvegarde durable. Toute copie supplémentaire doit utiliser une destination adaptée et couverte par les conditions requises.

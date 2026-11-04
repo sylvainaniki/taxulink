@@ -21,6 +21,7 @@
     "dev:mobile": "npm run start -w @taxilink/mobile",
     "build:mobile": "npm run export -w @taxilink/mobile",
     "setup": "node --import tsx scripts/init-env.ts",
+    "doctor": "node --env-file-if-exists=.env --import tsx scripts/doctor.ts",
     "start:hosted": "node scripts/start-hosted.mjs",
     "scalingo-postbuild": "npm run build"
   },
