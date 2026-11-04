@@ -2401,3 +2401,56 @@ test("push devices are private, delivery retries and revoked devices cannot rece
     await other.service.close();
   }
 });
+
+test("address search validates dedicated input before calling the provider and requires a managing role", async () => {
+  const queries: any[] = [];
+  const f = await pilotFixture({
+    geocoding: {
+      search: async (query: string, kind: string) => {
+        queries.push({ query, kind });
+        return [];
+      },
+    },
+  });
+  try {
+    assert.equal(
+      (
+        await f.call("/addresses/search", {
+          query: "Place Toulouse",
+          kind: "address",
+          patient_name: "Fictif",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(queries.length, 0);
+    assert.equal(
+      (
+        await f.call("/addresses/search", {
+          query: "Place Toulouse",
+          kind: "address",
+        })
+      ).status,
+      201,
+    );
+    assert.deepEqual(queries, [{ query: "Place Toulouse", kind: "address" }]);
+    for (const role of ["viewer", "driver"]) {
+      await db.query(
+        "UPDATE memberships SET role=$1 WHERE tenant_id=$2 AND user_id=$3",
+        [role, f.tenant, f.user],
+      );
+      assert.equal(
+        (
+          await f.call("/addresses/search", {
+            query: "Place Toulouse",
+            kind: "address",
+          })
+        ).status,
+        403,
+      );
+    }
+    assert.equal(queries.length, 1);
+  } finally {
+    await f.service.close();
+  }
+});

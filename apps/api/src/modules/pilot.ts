@@ -1,3 +1,4 @@
+import { searchInput, type Geocoder } from "../geocoding";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Sql } from "../db";
@@ -16,6 +17,7 @@ export async function pilotOperations(
   c: Context,
   options: {
     routing?: RoutingProvider;
+    geocoding?: Geocoder;
     push?: PushTransport;
     deliveryKey?: string;
     mail?: AccountMail;
@@ -27,6 +29,12 @@ export async function pilotOperations(
     requireThat(["admin", "dispatcher"].includes(role), 403, "ACCESS_DENIED");
   const audit = (action: string, id: string) =>
     c.audit(q, tenant, user, action, id);
+  if (method === "POST" && path === "/addresses/search") {
+    manage();
+    const d = searchInput.parse(body);
+    requireThat(options.geocoding, 503, "GEOCODING_UNAVAILABLE");
+    return value(await options.geocoding!.search(d.query, d.kind));
+  }
   const plan = await optimization(q, c);
   if (plan) return plan;
   if (method === "GET" && path === "/notification-settings")

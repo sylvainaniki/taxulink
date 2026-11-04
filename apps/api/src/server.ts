@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import type { Geocoder } from "./geocoding";
 import { All, Controller, Module, Req, Res } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import express, { type Request, type Response } from "express";
@@ -39,6 +40,7 @@ export interface Options {
   mail?: AccountMail;
   requireVerifiedEmail?: boolean;
   routing?: RoutingProvider;
+  geocoding?: Geocoder;
   push?: PushTransport;
   deliveryKey?: string;
 }

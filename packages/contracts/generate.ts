@@ -4,6 +4,7 @@ import * as models from "./index";
 import * as extended from "./extended";
 import * as account from "./account";
 import * as pilot from "./pilot";
+import { searchInput } from "../../apps/api/src/geocoding";
 const schemas: Record<string, any> = {};
 for (const name of [
   "loginInput",
@@ -30,6 +31,7 @@ for (const [name, schema] of Object.entries({
   delete json.$schema;
   schemas[name] = json;
 }
+schemas.addressSearchInput = z.toJSONSchema(searchInput);
 const paths: Record<string, any> = {};
 function add(
   path: string,
@@ -284,6 +286,7 @@ const writes = [
   ["/imports/courses", "importInput"],
 ];
 writes.push(
+  ["/addresses/search", "addressSearchInput"],
   ["/locations", "locationInput"],
   ["/routing/refresh", "routingInput"],
   ["/absences", "absenceInput"],

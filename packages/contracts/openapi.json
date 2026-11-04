@@ -5949,6 +5949,96 @@
         }
       }
     },
+    "/addresses/search": {
+      "post": {
+        "summary": "/addresses/search",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/addressSearchInput"
+              }
+            }
+          }
+        }
+      }
+    },
     "/routing/refresh": {
       "post": {
         "summary": "/routing/refresh",
@@ -8812,6 +8902,23 @@
           }
         },
         "required": ["version", "reason"],
+        "additionalProperties": false
+      },
+      "addressSearchInput": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 180
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["address", "poi"]
+          }
+        },
+        "required": ["query", "kind"],
         "additionalProperties": false
       },
       "Error": {

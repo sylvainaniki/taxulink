@@ -6,6 +6,7 @@ import {
   type Database,
 } from "./db";
 import { createApp } from "./server";
+import { ignGeocoder } from "./geocoding";
 import { routingFromEnv } from "./routing";
 import { deliverNotification, pushFromEnv } from "./deliveries";
 import { validMfaKey } from "./mfa";
@@ -47,6 +48,8 @@ async function main() {
       secureCookies: process.env.COOKIE_SECURE === "true",
       mail,
       routing: routingFromEnv(),
+      geocoding:
+        process.env.GEOCODING_ENABLED === "false" ? undefined : ignGeocoder(),
       push,
       deliveryKey: process.env.MAIL_ENCRYPTION_KEY,
       requireVerifiedEmail,

@@ -10,6 +10,7 @@ import {
 import { parseCsv, encodeCsv } from "../../../packages/contracts/csv";
 import { parisDateTime } from "../../../packages/contracts/dates";
 import { field } from "./Fields";
+import AddressBook from "./AddressBook";
 type Row = Record<string, any>;
 type Props = {
   tab: string;
@@ -940,6 +941,12 @@ export default function WorkspacePanels(p: Props) {
       )}
       {p.tab === "Contacts" && (
         <div className="panel padded">
+          <AddressBook
+            key={p.tenant}
+            api={p.api}
+            reload={p.reload}
+            locations={p.locations}
+          />
           <h2>Clients, établissements et partenaires</h2>
           <details>
             <summary>＋ Ajouter une fiche fictive</summary>

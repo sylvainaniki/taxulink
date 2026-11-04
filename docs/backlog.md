@@ -32,3 +32,9 @@ Solveur avancé/pooling, autonomie EV, portail patients/établissements, abonnem
 L’interface comporte une commande d’installation et le partage du lien canonique sans jeton. Le manifeste et les icônes permettent une installation PWA sur les navigateurs compatibles, avec une aide Safari iOS. Le service worker conserve uniquement la page hors connexion et les icônes publiques : aucune page authentifiée ni réponse API n’est mise en cache. Cette installation web ne constitue pas un APK natif, ne permet pas de modifier des missions hors ligne et requiert une origine HTTPS hors localhost.
 
 La distribution native Expo exige toujours une configuration de signature et un compte de build. Aucun binaire signé n’est livré par la compilation JavaScript Android.
+
+## Recherche et saisie de lieux
+
+Dans Contacts, recherche explicite d’adresses françaises et de lieux publics via IGN Géoplateforme (BAN / BD TOPO), avec sélection puis confirmation des coordonnées et d’un secteur public. La saisie manuelle reste disponible. Seul le champ de recherche dédié est envoyé au fournisseur ; aucune fiche patient n’est envoyée automatiquement. L’enregistrement d’un lieu ne garantit pas un itinéraire exploitable et n’active pas de fournisseur de routage.
+
+Cette évolution ne constitue pas une validation pour des données médicales réelles : le pilote doit encore disposer de comptes nominatifs, d’un routage qualifié, d’une sauvegarde d’exploitation testée, d’une revue de sécurité et de conditions d’hébergement/traitement adaptées aux données prévues.
