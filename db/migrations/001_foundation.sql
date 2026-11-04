@@ -1,0 +1,36 @@
+CREATE ROLE taxilink_app NOLOGIN NOBYPASSRLS;
+CREATE TABLE tenants (id uuid PRIMARY KEY, name text NOT NULL, timezone text NOT NULL DEFAULT 'Europe/Paris');
+CREATE TABLE users (id uuid PRIMARY KEY, email text UNIQUE NOT NULL, password_hash text NOT NULL);
+CREATE TABLE memberships (tenant_id uuid REFERENCES tenants(id), user_id uuid REFERENCES users(id), role text NOT NULL CHECK (role IN ('admin','dispatcher','driver','viewer')), active boolean NOT NULL DEFAULT true, PRIMARY KEY (tenant_id,user_id));
+CREATE TABLE sessions (token_hash text PRIMARY KEY, user_id uuid REFERENCES users(id), csrf text NOT NULL, expires_at timestamptz NOT NULL);
+CREATE TABLE locations (id text PRIMARY KEY, label text NOT NULL);
+CREATE TABLE routes (origin text REFERENCES locations(id), destination text REFERENCES locations(id), minutes integer NOT NULL CHECK(minutes>=0), provider text NOT NULL, expires_at timestamptz NOT NULL, PRIMARY KEY(origin,destination));
+CREATE TABLE drivers (id uuid PRIMARY KEY, tenant_id uuid NOT NULL REFERENCES tenants(id), user_id uuid, name text NOT NULL, active boolean NOT NULL DEFAULT true, shift_start timestamptz NOT NULL, shift_end timestamptz NOT NULL, start_location text NOT NULL REFERENCES locations(id), end_location text NOT NULL REFERENCES locations(id), breaks jsonb NOT NULL DEFAULT '[]', UNIQUE(tenant_id,id), FOREIGN KEY(tenant_id,user_id) REFERENCES memberships(tenant_id,user_id), CHECK(shift_end>shift_start));
+CREATE TABLE vehicles (id uuid PRIMARY KEY, tenant_id uuid NOT NULL REFERENCES tenants(id), label text NOT NULL, seats integer NOT NULL CHECK(seats BETWEEN 1 AND 8), accessible boolean NOT NULL DEFAULT false, active boolean NOT NULL DEFAULT true, start_location text NOT NULL DEFAULT 'loc-0' REFERENCES locations(id), UNIQUE(tenant_id,id));
+CREATE TABLE courses (id uuid PRIMARY KEY, tenant_id uuid NOT NULL REFERENCES tenants(id), reference text NOT NULL, origin text NOT NULL REFERENCES locations(id), destination text NOT NULL REFERENCES locations(id), pickup_at timestamptz NOT NULL, appointment_at timestamptz NOT NULL, arrival_buffer integer NOT NULL CHECK(arrival_buffer BETWEEN 0 AND 120), passengers integer NOT NULL CHECK(passengers BETWEEN 1 AND 8), accessible boolean NOT NULL DEFAULT false, status text NOT NULL DEFAULT 'unassigned' CHECK(status IN ('unassigned','assigned','approaching','onboard','completed','cancelled')), version integer NOT NULL DEFAULT 1, UNIQUE(tenant_id,id));
+CREATE TABLE assignments (id uuid PRIMARY KEY, tenant_id uuid NOT NULL REFERENCES tenants(id), course_id uuid NOT NULL UNIQUE, driver_id uuid NOT NULL, vehicle_id uuid NOT NULL, start_at timestamptz NOT NULL, end_at timestamptz NOT NULL, FOREIGN KEY(tenant_id,course_id) REFERENCES courses(tenant_id,id), FOREIGN KEY(tenant_id,driver_id) REFERENCES drivers(tenant_id,id), FOREIGN KEY(tenant_id,vehicle_id) REFERENCES vehicles(tenant_id,id), CHECK(end_at>start_at));
+CREATE TABLE invitations (id uuid PRIMARY KEY, tenant_id uuid NOT NULL REFERENCES tenants(id), email text NOT NULL, role text NOT NULL CHECK(role IN ('dispatcher','driver','viewer')), token_hash text UNIQUE NOT NULL, expires_at timestamptz NOT NULL, revoked boolean NOT NULL DEFAULT false, accepted boolean NOT NULL DEFAULT false);
+CREATE TABLE partner_groups (id uuid PRIMARY KEY, owner_tenant_id uuid NOT NULL REFERENCES tenants(id), name text NOT NULL);
+CREATE TABLE group_members (group_id uuid REFERENCES partner_groups(id), tenant_id uuid REFERENCES tenants(id), PRIMARY KEY(group_id,tenant_id));
+CREATE TABLE audit_events (id uuid PRIMARY KEY, tenant_id uuid NOT NULL REFERENCES tenants(id), actor_id uuid NOT NULL REFERENCES users(id), action text NOT NULL, object_id uuid NOT NULL, occurred_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE idempotency (tenant_id uuid NOT NULL REFERENCES tenants(id), actor_id uuid NOT NULL REFERENCES users(id), key text NOT NULL, request_hash text NOT NULL, response jsonb NOT NULL, PRIMARY KEY(tenant_id,actor_id,key));
+CREATE INDEX courses_pickup ON courses(tenant_id,pickup_at);
+CREATE INDEX assignments_driver ON assignments(tenant_id,driver_id,start_at);
+CREATE INDEX assignments_vehicle ON assignments(tenant_id,vehicle_id,start_at);
+GRANT USAGE ON SCHEMA public TO taxilink_app;
+GRANT SELECT, INSERT, UPDATE ON tenants, drivers, vehicles, courses, invitations, partner_groups, group_members TO taxilink_app;
+GRANT SELECT, INSERT ON assignments, audit_events, idempotency TO taxilink_app;
+GRANT SELECT ON locations, routes TO taxilink_app;
+ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
+CREATE POLICY own_tenant ON tenants USING (id::text = current_setting('app.tenant_id',true)) WITH CHECK (id::text=current_setting('app.tenant_id',true));
+DO $$ DECLARE t text; BEGIN
+ FOREACH t IN ARRAY ARRAY['drivers','vehicles','courses','assignments','invitations','audit_events','idempotency','group_members'] LOOP
+  EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t);
+  EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY',t);
+  EXECUTE format('CREATE POLICY tenant_isolation ON %I USING (tenant_id::text=current_setting(''app.tenant_id'',true)) WITH CHECK (tenant_id::text=current_setting(''app.tenant_id'',true))',t);
+ END LOOP;
+END $$;
+ALTER TABLE partner_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE partner_groups FORCE ROW LEVEL SECURITY;
+CREATE POLICY group_visibility ON partner_groups USING (owner_tenant_id::text=current_setting('app.tenant_id',true) OR EXISTS(SELECT 1 FROM group_members m WHERE m.group_id=id AND m.tenant_id::text=current_setting('app.tenant_id',true))) WITH CHECK (owner_tenant_id::text=current_setting('app.tenant_id',true));

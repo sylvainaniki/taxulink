@@ -1,0 +1,25 @@
+CREATE ROLE taxilink_identity NOLOGIN NOBYPASSRLS;
+GRANT USAGE ON SCHEMA public TO taxilink_identity;
+GRANT SELECT,INSERT ON users TO taxilink_identity;
+GRANT UPDATE(password_hash) ON users TO taxilink_identity;
+GRANT SELECT,INSERT,DELETE ON sessions TO taxilink_identity;
+GRANT SELECT,INSERT ON memberships TO taxilink_identity;
+GRANT SELECT ON tenants,invitations TO taxilink_identity;
+GRANT INSERT(id,name) ON tenants TO taxilink_identity;
+GRANT UPDATE(accepted) ON invitations TO taxilink_identity;
+GRANT INSERT ON audit_events TO taxilink_identity;
+GRANT SELECT,UPDATE ON collaboration_lock TO taxilink_identity,taxilink_app;
+GRANT SELECT ON schema_migrations TO taxilink_app;
+CREATE POLICY tenant_identity ON tenants TO taxilink_identity USING(true) WITH CHECK(true);
+CREATE POLICY membership_identity ON memberships TO taxilink_identity USING(true) WITH CHECK(true);
+CREATE POLICY invitation_identity ON invitations TO taxilink_identity USING(true) WITH CHECK(true);
+CREATE POLICY audit_identity ON audit_events FOR INSERT TO taxilink_identity WITH CHECK(true);
+CREATE FUNCTION authenticate_request(session_hash text,chosen_tenant uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$ DECLARE s sessions;account_email text;member_role text;BEGIN
+ SELECT * INTO s FROM sessions WHERE token_hash=session_hash AND expires_at>now() FOR SHARE;
+ IF s.user_id IS NULL THEN RETURN NULL;END IF;
+ SELECT role INTO member_role FROM memberships WHERE user_id=s.user_id AND tenant_id=chosen_tenant AND active FOR SHARE;
+ SELECT email INTO account_email FROM users WHERE id=s.user_id;
+ RETURN jsonb_build_object('user_id',s.user_id,'csrf',s.csrf,'email',account_email,'role',member_role);
+ END $$;
+REVOKE ALL ON FUNCTION authenticate_request(text,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION authenticate_request(text,uuid) TO taxilink_app;

@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.env
+.env.*
+!.env.example
+.data/
+coverage/
+*.tsbuildinfo
+docs/specs/
+apps/mobile/dist/
+apps/mobile/.expo/
+*.tlbackup

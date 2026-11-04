@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+**/.next
+.git
+.env
+.data
+upload
+**/dist
+**/.expo
+docs/specs
+**/.env*
+!**/.env.example
+**/*.tlbackup

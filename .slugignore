@@ -1,0 +1,8 @@
+.git
+.data
+.env
+.env.*
+coverage
+playwright-report
+test-results
+node_modules/.cache

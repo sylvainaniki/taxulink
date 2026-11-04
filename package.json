@@ -1,0 +1,58 @@
+{
+  "name": "taxilink",
+  "private": true,
+  "version": "0.2.0",
+  "workspaces": [
+    "apps/web",
+    "apps/mobile"
+  ],
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --import tsx scripts/start-local.ts",
+    "dev:local": "node --env-file-if-exists=.env --import tsx scripts/start-local.ts --dev",
+    "dev": "node --import tsx apps/api/src/main.ts",
+    "dev:web": "npm run dev -w apps/web",
+    "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web && tsc --noEmit -p apps/mobile",
+    "build": "npm run build -w apps/web",
+    "lint": "prettier --check apps packages tests db docs/adr scripts README.md",
+    "format": "prettier --write apps packages tests db docs/adr scripts README.md",
+    "db:migrate": "node --import tsx apps/api/src/migrate.ts",
+    "db:seed": "node --import tsx apps/api/src/seed.ts",
+    "contract:generate": "node --import tsx packages/contracts/generate.ts && prettier --write packages/contracts/openapi.json",
+    "test:e2e": "node --env-file=.env tests/e2e.mjs",
+    "dev:mobile": "npm run start -w @taxilink/mobile",
+    "build:mobile": "npm run export -w @taxilink/mobile",
+    "setup": "node --import tsx scripts/init-env.ts",
+    "doctor": "node --env-file-if-exists=.env --import tsx scripts/doctor.ts",
+    "start:hosted": "node scripts/start-hosted.mjs",
+    "scalingo-postbuild": "npm run build"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.3.14",
+    "@nestjs/common": "12.3.2",
+    "@nestjs/core": "12.3.2",
+    "@nestjs/platform-express": "12.3.2",
+    "express": "5.1.0",
+    "nodemailer": "10.3.1",
+    "pdf-lib": "1.17.1",
+    "pg": "8.16.3",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "sharp": "0.35.5",
+    "zod": "4.6.7",
+    "tsx": "4.20.6"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.3",
+    "@types/node": "24.7.2",
+    "@types/nodemailer": "8.0.2",
+    "@types/pg": "8.15.5",
+    "light-my-request": "6.6.0",
+    "playwright": "1.62.1",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}
