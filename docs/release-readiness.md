@@ -4,13 +4,17 @@ Adresse de démonstration : https://taxilink-demo.onrender.com
 
 ## Vérifications effectuées
 
-- 69 tests locaux, TypeScript, formatage et compilation web réussis pour l’incrément d’exploitation. CI du commit 51a226c verte : https://github.com/sylvainaniki/taxulink/actions/runs/41797892249 (PGlite, PostgreSQL, Docker, navigateur, mobile).
+- 72 tests locaux, TypeScript, formatage et compilation web réussis pour l’incrément d’exploitation. CI du commit 51a226c verte : https://github.com/sylvainaniki/taxulink/actions/runs/41797892249 (PGlite, PostgreSQL, Docker, navigateur, mobile).
 - Connexion Atlas, création et affectation d’une mission, rechargement avec conservation des données.
 - Recherche et enregistrement de lieux publics : Place du Capitole et Hôpital Purpan, Toulouse.
 - Calcul routier IGN dans les deux sens, source explicitement affichée : 22 min / 5,1 km dans un sens et 21 min / 5,8 km dans l’autre lors de l’essai, marge de 25 % incluse. Ces valeurs ne sont pas des garanties pour une course future.
 - Création de DEMO-IGN-TRAJET à 16 h, affectation à Camille 2 / véhicule démo 2 après configuration de leurs départs sur le lieu confirmé.
 - Demande puis refus d’un relais ; calcul d’une proposition avec fenêtres horaires sans application automatique.
 - Affichage vérifié à 390 px lors de la livraison initiale ; installation sur appareil physique à recetter.
+
+## Accès du pilote
+
+Inscription publique fermée par défaut, création de compte par invitation nominative (48 h, révocable, usage unique). Plafond global de 10 personnes actives, y compris administrateurs et comptes de démonstration. Les inscriptions simultanées sont sérialisées ; un refus de capacité ne consomme ni invitation ni compte. Aucun compte patient prévu.
 
 ## Portes restantes avant données patients réelles
 

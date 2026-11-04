@@ -23,6 +23,13 @@ export const registerInput = loginInput
     company: z.string().trim().min(2).max(100),
   })
   .strict();
+export const joinInput = z
+  .object({
+    email: z.email().max(254),
+    password: z.string().min(16).max(128),
+    token: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
 export const vehicleInput = z
   .object({
     label: z.string().trim().min(1).max(60),

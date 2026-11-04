@@ -2513,3 +2513,213 @@ test("a vehicle departure point can be updated to an owned location but never a 
     await other.service.close();
   }
 });
+
+test("invite-only onboarding validates the recipient, expiry, revocation and single use", async () => {
+  const f = await pilotFixture();
+  const closed = await createApp(
+    db,
+    { demo: true, publicRegistration: false, authLimit: 1000 },
+    asRole(db, "taxilink_identity"),
+  );
+  const call = async (path: string, body?: any) => {
+    const r = await inject(closed.getHttpAdapter().getInstance(), {
+      method: body ? "POST" : "GET",
+      url: "/api/v1" + path,
+      ...(body ? { payload: body } : {}),
+    });
+    return { status: r.statusCode, body: r.json() };
+  };
+  try {
+    assert.equal(
+      (await call("/auth/policy")).body.public_registration_enabled,
+      false,
+    );
+    assert.equal(
+      (
+        await call("/auth/register", {
+          email: `closed-${randomUUID()}@example.test`,
+          password,
+          company: "Forbidden",
+        })
+      ).status,
+      403,
+    );
+    const email = `invite-${randomUUID()}@example.test`;
+    const invite = (await f.call("/invitations", { email, role: "driver" }))
+      .body;
+    const join = { email, password, token: invite.token };
+    assert.equal(
+      (await call("/auth/join", { ...join, email: "wrong@example.test" }))
+        .status,
+      400,
+    );
+    await db.query(
+      "UPDATE invitations SET expires_at=now()-interval '1 hour' WHERE id=$1",
+      [invite.id],
+    );
+    assert.equal((await call("/auth/join", join)).status, 400);
+    await db.query(
+      "UPDATE invitations SET expires_at=now()+interval '1 hour',revoked=true WHERE id=$1",
+      [invite.id],
+    );
+    assert.equal((await call("/auth/join", join)).status, 400);
+    await db.query("UPDATE invitations SET revoked=false WHERE id=$1", [
+      invite.id,
+    ]);
+    const accepted = await call("/auth/join", join);
+    assert.equal(accepted.status, 201, JSON.stringify(accepted.body));
+    assert.equal(accepted.body.tenant_id, f.tenant);
+    const membership = (
+      await db.query(
+        "SELECT m.role,m.tenant_id FROM memberships m JOIN users u ON u.id=m.user_id WHERE u.email=$1",
+        [email],
+      )
+    ).rows;
+    assert.equal(membership.length, 1);
+    assert.equal(membership[0].role, "driver");
+    assert.equal(membership[0].tenant_id, f.tenant);
+    assert.equal((await call("/auth/join", join)).status, 400);
+  } finally {
+    await closed.close();
+    await f.service.close();
+  }
+});
+
+test("concurrent invited signups share the global active-user ceiling and preserve rejected invitations", async () => {
+  const f = await pilotFixture();
+  const count = Number(
+    (
+      await db.query(
+        "SELECT count(DISTINCT user_id)::int AS n FROM memberships WHERE active",
+      )
+    ).rows[0].n,
+  );
+  const limited = await createApp(
+    db,
+    {
+      demo: true,
+      publicRegistration: false,
+      maxActiveUsers: count + 1,
+      authLimit: 1000,
+    },
+    asRole(db, "taxilink_identity"),
+  );
+  try {
+    const invitations = [];
+    for (let i = 0; i < 3; i++) {
+      const email = `capacity-${randomUUID()}@example.test`;
+      invitations.push({
+        email,
+        ...(await f.call("/invitations", { email, role: "driver" })).body,
+      });
+    }
+    const results = await Promise.all(
+      invitations.map((i) =>
+        inject(limited.getHttpAdapter().getInstance(), {
+          method: "POST",
+          url: "/api/v1/auth/join",
+          payload: { email: i.email, token: i.token, password },
+        }),
+      ),
+    );
+    assert.equal(results.filter((r) => r.statusCode === 201).length, 1);
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].statusCode === 201) continue;
+      assert.equal(results[i].statusCode, 409, results[i].payload);
+      assert.match(results[i].payload, /PILOT_USER_LIMIT/);
+      assert.equal(
+        (
+          await db.query("SELECT accepted FROM invitations WHERE id=$1", [
+            invitations[i].id,
+          ])
+        ).rows[0].accepted,
+        false,
+      );
+      assert.equal(
+        (
+          await db.query("SELECT id FROM users WHERE email=$1", [
+            invitations[i].email,
+          ])
+        ).rows.length,
+        0,
+      );
+    }
+    assert.equal(
+      Number(
+        (
+          await db.query(
+            "SELECT count(DISTINCT user_id)::int AS n FROM memberships WHERE active",
+          )
+        ).rows[0].n,
+      ),
+      count + 1,
+    );
+  } finally {
+    await limited.close();
+    await f.service.close();
+  }
+});
+
+test("reactivation respects the ceiling while an already-active person does not consume another place", async () => {
+  const count = Number(
+    (
+      await db.query(
+        "SELECT count(DISTINCT user_id)::int AS n FROM memberships WHERE active",
+      )
+    ).rows[0].n,
+  );
+  const f = await pilotFixture({ maxActiveUsers: count + 1 });
+  try {
+    const dormant = randomUUID();
+    await db.query(
+      "INSERT INTO users(id,email,password_hash) VALUES($1,$2,$3)",
+      [dormant, `dormant-${dormant}@example.test`, "unused-synthetic"],
+    );
+    await db.query(
+      "INSERT INTO memberships(tenant_id,user_id,role,active) VALUES($1,$2,'driver',false)",
+      [f.tenant, dormant],
+    );
+    const rejected = await f.call(`/members/${dormant}/update`, {
+      role: "driver",
+      active: true,
+    });
+    assert.equal(rejected.status, 409, JSON.stringify(rejected.body));
+    assert.match(JSON.stringify(rejected.body), /PILOT_USER_LIMIT/);
+    assert.equal(
+      (
+        await db.query(
+          "SELECT active FROM memberships WHERE tenant_id=$1 AND user_id=$2",
+          [f.tenant, dormant],
+        )
+      ).rows[0].active,
+      false,
+    );
+    const existing = (
+      await db.query(
+        "SELECT user_id FROM memberships WHERE active AND user_id<>$1 LIMIT 1",
+        [f.user],
+      )
+    ).rows[0].user_id;
+    await db.query(
+      "INSERT INTO memberships(tenant_id,user_id,role,active) VALUES($1,$2,'driver',false)",
+      [f.tenant, existing],
+    );
+    const allowed = await f.call(`/members/${existing}/update`, {
+      role: "driver",
+      active: true,
+    });
+    assert.equal(allowed.status, 201, JSON.stringify(allowed.body));
+    assert.equal(
+      Number(
+        (
+          await db.query(
+            "SELECT count(DISTINCT user_id)::int AS n FROM memberships WHERE active",
+          )
+        ).rows[0].n,
+      ),
+      count + 1,
+    );
+  } finally {
+    await f.service.close();
+  }
+});

@@ -9,6 +9,7 @@ const schemas: Record<string, any> = {};
 for (const name of [
   "loginInput",
   "registerInput",
+  "joinInput",
   "vehicleInput",
   "driverInput",
   "courseInput",
@@ -260,6 +261,14 @@ for (const [path, summary] of [
   ["conversations", "Conversations autorisées"],
 ])
   add("/" + path, "get", summary);
+add("/auth/policy", "get", "Politique d’accès du pilote", undefined, true);
+add(
+  "/auth/join",
+  "post",
+  "Créer son compte depuis une invitation",
+  "joinInput",
+  true,
+);
 const writes = [
   ["/members/{id}/update", "memberInput"],
   ["/contacts", "contactInput"],

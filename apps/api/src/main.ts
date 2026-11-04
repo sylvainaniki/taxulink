@@ -44,6 +44,8 @@ async function main() {
     db,
     {
       demo,
+      publicRegistration: process.env.PUBLIC_REGISTRATION_ENABLED === "true",
+      maxActiveUsers: 10,
       mfaKey: process.env.MFA_ENCRYPTION_KEY,
       webOrigin: process.env.WEB_ORIGIN,
       secureCookies: process.env.COOKIE_SECURE === "true",

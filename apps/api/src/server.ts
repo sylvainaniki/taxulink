@@ -33,6 +33,8 @@ import {
 } from "./mfa";
 export interface Options {
   demo: boolean;
+  publicRegistration?: boolean;
+  maxActiveUsers?: number;
   mfaKey?: string;
   authLimit?: number;
   webOrigin?: string;
@@ -51,6 +53,17 @@ export async function createApp(
   identity: Database = db,
 ) {
   const limits = new Map<string, { count: number; until: number }>();
+  async function capacity(q: Sql, user: string) {
+    if (!options.maxActiveUsers) return;
+    const allowed = (
+      await q.query("SELECT pilot_has_capacity($1,$2) AS allowed", [
+        user,
+        options.maxActiveUsers,
+      ])
+    ).rows[0].allowed;
+    requireThat(allowed, 409, "PILOT_USER_LIMIT");
+  }
+
   async function audit(
     q: Sql,
     tenant: string,
@@ -128,6 +141,81 @@ export async function createApp(
       );
       requireThat(req.is("application/json"), 415, "JSON_REQUIRED");
     }
+    if (req.method === "GET" && path === "/auth/policy")
+      return res.json({
+        public_registration_enabled:
+          options.demo && (options.publicRegistration ?? true),
+        invitation_join_enabled: true,
+        max_active_users: options.maxActiveUsers || null,
+      });
+    if (req.method === "POST" && path === "/auth/join") {
+      limited(req);
+      const d = input.joinInput.parse(req.body),
+        uid = randomUUID();
+      const result = await identity.transaction(async (q) => {
+        await q.query(
+          "SELECT id FROM collaboration_lock WHERE id=1 FOR UPDATE",
+        );
+        const invitation = (
+          await q.query(
+            "SELECT * FROM invitations WHERE token_hash=$1 FOR UPDATE",
+            [hash(d.token)],
+          )
+        ).rows[0];
+        requireThat(
+          invitation &&
+            !invitation.revoked &&
+            !invitation.accepted &&
+            new Date(invitation.expires_at).getTime() > Date.now() &&
+            invitation.email === d.email.toLowerCase(),
+          400,
+          "INVITATION_INVALID",
+        );
+        requireThat(
+          !(
+            await q.query("SELECT 1 FROM users WHERE email=$1", [
+              d.email.toLowerCase(),
+            ])
+          ).rows.length,
+          409,
+          "ACCOUNT_EXISTS",
+        );
+        await capacity(q, uid);
+        await q.query(
+          "INSERT INTO users(id,email,password_hash) VALUES($1,$2,$3)",
+          [uid, d.email.toLowerCase(), passwordHash(d.password)],
+        );
+        await q.query(
+          "INSERT INTO memberships(tenant_id,user_id,role) VALUES($1,$2,$3)",
+          [invitation.tenant_id, uid, invitation.role],
+        );
+        await q.query("UPDATE invitations SET accepted=true WHERE id=$1", [
+          invitation.id,
+        ]);
+        await audit(
+          q,
+          invitation.tenant_id,
+          uid,
+          "invitation.joined",
+          invitation.id,
+        );
+        if (options.mail)
+          await enqueueAccountLink(
+            q,
+            options.mail,
+            { id: uid, email: d.email.toLowerCase() },
+            "verify",
+          );
+        return {
+          ...(await issueSession(q, uid)),
+          tenant_id: invitation.tenant_id,
+        };
+      });
+      setCookie(res, result.raw, 8 * 3600);
+      return res
+        .status(201)
+        .json({ csrf: result.csrf, tenant_id: result.tenant_id });
+    }
     if (req.method === "GET" && path === "/health")
       return res.json({ status: "ok", demo: options.demo, documents: false });
     if (
@@ -150,7 +238,11 @@ export async function createApp(
     ) {
       limited(req);
       if (path === "/auth/register") {
-        requireThat(options.demo, 403, "REGISTRATION_DISABLED");
+        requireThat(
+          options.demo && (options.publicRegistration ?? true),
+          403,
+          "REGISTRATION_DISABLED",
+        );
         const data = input.registerInput.parse(req.body);
         const user = randomUUID(),
           tenant = randomUUID();
@@ -167,6 +259,7 @@ export async function createApp(
             409,
             "ACCOUNT_EXISTS",
           );
+          await capacity(q, user);
           await q.query("INSERT INTO users VALUES($1,$2,$3)", [
             user,
             data.email.toLowerCase(),
@@ -292,6 +385,7 @@ export async function createApp(
           409,
           "MEMBERSHIP_EXISTS",
         );
+        await capacity(q, s.user_id);
         await q.query(
           "INSERT INTO memberships(tenant_id,user_id,role) VALUES($1,$2,$3)",
           [invitation.tenant_id, s.user_id, invitation.role],
@@ -506,6 +600,15 @@ export async function createApp(
         }
       }
       async function dispatch(): Promise<any> {
+        if (
+          write &&
+          /^\/members\/[a-f0-9-]+\/update$/.test(path) &&
+          req.body?.active === true
+        ) {
+          admin();
+          await capacity(q, input.uuid.parse(path.split("/")[2]));
+        }
+
         const pilot = await pilotOperations(
           q,
           {

@@ -126,3 +126,11 @@ Voir [docs/validation.md](docs/validation.md), [docs/adr/001-foundation.md](docs
 Restent la qualification terrain du routage IGN, la configuration et la qualification de la délivrabilité SMTP externe, les notifications push/email externes, la recette sur appareils, les tests de charge distribuée, les procédures d’exploitation et l’audit de sécurité. Le fournisseur d’hébergement et les prérequis RGPD/HDS/NIR doivent être validés pour les données visées. Les uploads de pièces médicales, OCR/puce et intégrations CPAM sont absents et ne peuvent pas être activés par un simple flag.
 
 Le démarrage exige `DEMO_MODE=true` et refuse `REAL_SENSITIVE_DOCUMENTS_ENABLED=true`. Le pilote d’exploitation réel n’est donc pas déclaré terminé. Les fonctions V2 (paiements SaaS, portail établissements/patients, facturation B2, pooling, EV/solveur avancé) ne sont pas comprises dans cette démonstration.
+
+## Pilote privé de 10 utilisateurs
+
+Le serveur limite le pilote à 10 personnes actives distinctes, tous rôles et entreprises confondus. Une personne membre de plusieurs entreprises ne compte qu’une fois. Les comptes de démonstration actifs occupent aussi des places. Aucun accès patient : patients et établissements restent des fiches saisies par les professionnels.
+
+L’inscription publique est fermée par défaut. Un administrateur crée une invitation dans Membres, puis transmet le code au destinataire. Celui-ci choisit « J’ai une invitation » sur la connexion, saisit l’adresse invitée, un mot de passe et le code. Le compte rejoint directement l’entreprise avec le rôle prévu. Les codes expirent après 48 h et sont révocables et utilisables une seule fois. Un utilisateur déjà inscrit se connecte puis accepte l’invitation dans son espace. La réactivation d’un compte respecte aussi le plafond.
+
+`PUBLIC_REGISTRATION_ENABLED=true` réactive uniquement la création d’entreprises dans un environnement de démonstration ; le plafond reste appliqué. L’hébergement actuel reste réservé aux données fictives selon les limites de `docs/release-readiness.md`.

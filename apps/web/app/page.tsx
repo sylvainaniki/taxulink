@@ -43,6 +43,11 @@ const errors: Record<string, string> = {
   ROUTE_UNAVAILABLE: "Aucun trajet validé : affectation bloquée.",
   PLAN_STALE: "La course a changé. Actualisez avant de réessayer.",
   VALIDATION_ERROR: "Vérifiez les champs et les horaires saisis.",
+  REGISTRATION_DISABLED: "L’accès est réservé aux personnes invitées.",
+  PILOT_USER_LIMIT:
+    "La limite de 10 utilisateurs actifs du pilote est atteinte. Contactez l’administrateur.",
+  ACCOUNT_EXISTS:
+    "Ce compte existe déjà. Connectez-vous puis acceptez votre invitation dans Accès.",
   DOCUMENTS_DISABLED: "Le module documentaire est désactivé.",
   NETWORK: "Connexion au serveur impossible.",
   CSRF_DENIED: "Session expirée. Reconnectez-vous.",
@@ -72,6 +77,9 @@ export default function Page() {
     [csrf, setCsrf] = useState(""),
     [tab, setTab] = useState("Planning"),
     [date, setDate] = useState("2026-11-04");
+  const [accessPolicy, setAccessPolicy] = useState<Row>({
+    public_registration_enabled: false,
+  });
   const [courses, setCourses] = useState<Row[]>([]),
     [customers, setCustomers] = useState<Row[]>([]),
     [drivers, setDrivers] = useState<Row[]>([]),
@@ -180,6 +188,9 @@ export default function Page() {
     };
     consumeAccountLink();
     window.addEventListener("hashchange", consumeAccountLink);
+    void api("/auth/policy")
+      .then(setAccessPolicy)
+      .catch(() => {});
     loadIdentity()
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -334,6 +345,12 @@ export default function Page() {
             email: d.email,
             password: d.password,
             company: d.company,
+          });
+        else if (modal === "join")
+          await api("/auth/join", {
+            email: d.email,
+            password: d.password,
+            token: d.token,
           });
         else
           await api("/auth/login", {
@@ -503,7 +520,13 @@ export default function Page() {
         </section>
         <section className="login-form">
           <p className="eyebrow">VOTRE ESPACE DE TRAVAIL</p>
-          <h2>{modal === "register" ? "Créer mon entreprise" : "Connexion"}</h2>
+          <h2>
+            {modal === "register"
+              ? "Créer mon entreprise"
+              : modal === "join"
+                ? "Rejoindre sur invitation"
+                : "Connexion"}
+          </h2>
           <p>Retrouvez votre équipe et vos missions.</p>
           {loading ? (
             <p>Connexion en cours…</p>
@@ -513,6 +536,17 @@ export default function Page() {
                 field(
                   "Entreprise",
                   <input name="company" required minLength={2} />,
+                )}
+              {modal === "join" &&
+                field(
+                  "Code d’invitation",
+                  <input
+                    name="token"
+                    required
+                    minLength={64}
+                    maxLength={64}
+                    autoComplete="off"
+                  />,
                 )}
               {field(
                 "Adresse email",
@@ -530,13 +564,15 @@ export default function Page() {
                   name="password"
                   type="password"
                   autoComplete={
-                    modal === "register" ? "new-password" : "current-password"
+                    modal === "register" || modal === "join"
+                      ? "new-password"
+                      : "current-password"
                   }
                   required
-                  minLength={modal === "register" ? 16 : 1}
+                  minLength={modal === "register" || modal === "join" ? 16 : 1}
                 />,
               )}
-              {mfaLogin && modal !== "register" && (
+              {mfaLogin && modal !== "register" && modal !== "join" && (
                 <>
                   {field(
                     "Code de l’application d’authentification",
@@ -564,7 +600,9 @@ export default function Page() {
                   ? "Connexion…"
                   : modal === "register"
                     ? "Créer mon espace"
-                    : "Ouvrir mon espace →"}
+                    : modal === "join"
+                      ? "Créer mon compte et rejoindre"
+                      : "Ouvrir mon espace →"}
               </button>
               <button
                 className="quiet"
@@ -574,17 +612,31 @@ export default function Page() {
                 Mot de passe oublié
               </button>
               <button
-                className="quiet"
                 type="button"
+                className="quiet"
                 onClick={() => {
-                  setModal(modal === "register" ? "" : "register");
+                  setModal(modal === "join" ? "" : "join");
                   setError("");
                 }}
               >
-                {modal === "register"
-                  ? "J’ai déjà un compte"
-                  : "Créer une entreprise de démonstration"}
+                {modal === "join"
+                  ? "Retour à la connexion"
+                  : "J’ai une invitation"}
               </button>
+              {accessPolicy.public_registration_enabled && (
+                <button
+                  className="quiet"
+                  type="button"
+                  onClick={() => {
+                    setModal(modal === "register" ? "" : "register");
+                    setError("");
+                  }}
+                >
+                  {modal === "register"
+                    ? "J’ai déjà un compte"
+                    : "Créer une entreprise de démonstration"}
+                </button>
+              )}
             </form>
           )}
           <aside className="demo-note">

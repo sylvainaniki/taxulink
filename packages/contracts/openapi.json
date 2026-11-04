@@ -3396,6 +3396,106 @@
         }
       }
     },
+    "/auth/policy": {
+      "get": {
+        "summary": "Politique d’accès du pilote",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        }
+      }
+    },
+    "/auth/join": {
+      "post": {
+        "summary": "Créer son compte depuis une invitation",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/joinInput"
+              }
+            }
+          }
+        }
+      }
+    },
     "/routing/status": {
       "get": {
         "summary": "/routing/status",
@@ -7363,6 +7463,28 @@
           }
         },
         "required": ["email", "password", "company"],
+        "additionalProperties": false
+      },
+      "joinInput": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128
+          },
+          "token": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": ["email", "password", "token"],
         "additionalProperties": false
       },
       "vehicleInput": {
