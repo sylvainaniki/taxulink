@@ -13,7 +13,7 @@ test("geocoding uses only the fixed IGN endpoint and projects valid public place
             geometry: { type: "Point", coordinates: [1.4, 43.6] },
             properties: {
               label: "Établissement fictif Toulouse",
-              city: "Toulouse",
+              city: ["Toulouse"],
               private_field: "must not be returned",
             },
           },

@@ -68,8 +68,17 @@ export function ignGeocoder(transport: typeof fetch = fetch): Geocoder {
         return data.features.slice(0, 5).flatMap((f: any) => {
           const [longitude, latitude] = f.geometry?.coordinates || [],
             p = f.properties || {};
-          const label = p.label || p.name,
-            sector = p.city || p.citycode || p.postcode;
+          const text = (value: unknown): string =>
+            Array.isArray(value)
+              ? value
+                  .filter((v) => typeof v === "string")
+                  .slice(0, 5)
+                  .join(", ")
+              : typeof value === "string"
+                ? value
+                : "";
+          const label = text(p.label) || text(p.name),
+            sector = text(p.city) || text(p.citycode) || text(p.postcode);
           if (
             f.geometry?.type !== "Point" ||
             !Number.isFinite(latitude) ||
