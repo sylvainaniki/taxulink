@@ -1179,3 +1179,24 @@ details[open] > summary {
 .account-recovery > button {
   margin-top: 16px;
 }
+
+.install-app {
+  padding: 1rem 1.5rem;
+  background: #f6f7f9;
+  color: #142b3b;
+  border-top: 1px solid #dce3e8;
+}
+.install-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+.install-help {
+  max-width: 48rem;
+  margin: 1rem auto;
+  line-height: 1.6;
+}
+.install-app [role="status"] {
+  text-align: center;
+}

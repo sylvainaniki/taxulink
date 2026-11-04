@@ -26,3 +26,9 @@ Solveur avancé/pooling, autonomie EV, portail patients/établissements, abonnem
 - Proposition par recherche dans les fenêtres horaires, priorités et replanification, sans déplacer les missions commencées ; application versionnée et atomique.
 - File de notifications email/Expo, reprises temporisées et reçus Expo, appareils liés à une session et révocables. Configuration externe et recette sur téléphone restent nécessaires. Les préférences email et appareils sont accessibles depuis Notifications.
 - Préparation documentaire fictive : chiffrement, schéma privé, nettoyage des images/PDF et interface antivirus. **Les routes documentaires restent désactivées**, y compris pour les administrateurs ; ce code ne constitue pas une activation du module.
+
+## Installation web et partage
+
+L’interface comporte une commande d’installation et le partage du lien canonique sans jeton. Le manifeste et les icônes permettent une installation PWA sur les navigateurs compatibles, avec une aide Safari iOS. Le service worker conserve uniquement la page hors connexion et les icônes publiques : aucune page authentifiée ni réponse API n’est mise en cache. Cette installation web ne constitue pas un APK natif, ne permet pas de modifier des missions hors ligne et requiert une origine HTTPS hors localhost.
+
+La distribution native Expo exige toujours une configuration de signature et un compte de build. Aucun binaire signé n’est livré par la compilation JavaScript Android.
