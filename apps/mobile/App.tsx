@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
+  Linking,
   Platform,
   Pressable,
   SafeAreaView,
@@ -15,6 +16,17 @@ import {
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
 import { StatusBar } from "expo-status-bar";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
+import { navigationUrl } from "../../packages/contracts/navigation";
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 type Row = Record<string, any>;
 const base = (
   process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000/api/v1"
@@ -23,6 +35,10 @@ const sessionKey = "taxilink-session";
 const labels: Row = {
   unassigned: "À attribuer",
   assigned: "Attribuée",
+  draft: "Brouillon",
+  confirmed: "Confirmée",
+  failed: "Échec",
+  no_show: "Non présent",
   approaching: "En approche",
   onboard: "À bord",
   completed: "Terminée",
@@ -94,6 +110,65 @@ export default function App() {
     active.current?.token === s.token && active.current?.tenant === s.tenant;
   const cacheKey = (s: Row) =>
     "taxilink-missions-" + s.user_id + "-" + s.tenant;
+  async function enablePush() {
+    const s = active.current;
+    if (!s) return;
+    const settings = await api("/notification-settings", undefined, s);
+    if (!settings.push_available)
+      throw new Error(
+        "Les notifications push ne sont pas configurées sur cette installation.",
+      );
+    const projectId =
+      process.env.EXPO_PUBLIC_EAS_PROJECT_ID ||
+      Constants.expoConfig?.extra?.eas?.projectId;
+    if (!projectId)
+      throw new Error(
+        "Le projet mobile doit être configuré avant d’activer les notifications.",
+      );
+    if (Platform.OS === "android")
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "Événements TAXILINK",
+        importance: Notifications.AndroidImportance.DEFAULT,
+      });
+    const permission = await Notifications.requestPermissionsAsync();
+    if (permission.status !== "granted")
+      throw new Error("Permission de notification refusée.");
+    const expoToken = await Notifications.getExpoPushTokenAsync({ projectId });
+    if (!current(s)) return;
+    const result = await api(
+      "/devices",
+      {
+        token: expoToken.data,
+        platform: Platform.OS === "ios" ? "ios" : "android",
+      },
+      s,
+    );
+    const next = { ...s, push_device_id: result.id };
+    await saveSession(next);
+    if (current(s)) activate(next);
+    Alert.alert(
+      "Notifications activées",
+      "Les notifications affichent uniquement un avis générique. Les détails restent dans votre espace.",
+    );
+  }
+  useEffect(() => {
+    const listener = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const s = active.current;
+        if (!s) return;
+        const tenant = response.notification.request.content.data?.tenant_id;
+        if (tenant === s.tenant) {
+          setTab("Missions");
+          refresh(s).catch(() => {});
+        } else
+          Alert.alert(
+            "Événement TAXILINK",
+            "Un événement concerne une autre entreprise. Sélectionnez-la dans Compte pour consulter vos accès.",
+          );
+      },
+    );
+    return () => listener.remove();
+  }, []);
   async function clearLocal(s = session) {
     if (s && active.current && s.token !== active.current.token) return;
     if (s) await SecureStore.deleteItemAsync(cacheKey(s));
@@ -481,12 +556,61 @@ export default function App() {
                     true,
                   )}
                 {!offline &&
-                  ["assigned", "approaching", "onboard"].includes(m.status) && (
+                  button(
+                    "Ouvrir la navigation",
+                    () => {
+                      const origin = locations.find((p) => p.id === m.origin),
+                        destination = locations.find(
+                          (p) => p.id === m.destination,
+                        );
+                      const url =
+                        origin && destination
+                          ? navigationUrl(
+                              origin as any,
+                              destination as any,
+                              Platform.OS === "ios" ? "apple" : "google",
+                            )
+                          : null;
+                      if (url)
+                        Linking.openURL(url).catch(() =>
+                          Alert.alert("Navigation indisponible"),
+                        );
+                      else
+                        Alert.alert(
+                          "Navigation indisponible",
+                          "Les coordonnées de ce trajet ne sont pas encore validées.",
+                        );
+                    },
+                    true,
+                  )}
+                {!offline &&
+                  ["assigned", "confirmed"].includes(m.status) &&
+                  button(
+                    "Demander une réattribution",
+                    () =>
+                      run(async () => {
+                        await api(`/courses/${m.id}/transfer-request`, {
+                          version: m.version,
+                          reason: "other",
+                        });
+                        Alert.alert(
+                          "Demande transmise",
+                          "Votre affectation est conservée jusqu’à la décision de la régulation.",
+                        );
+                      }),
+                    true,
+                    busy,
+                  )}
+                {!offline &&
+                  ["assigned", "confirmed", "approaching", "onboard"].includes(
+                    m.status,
+                  ) && (
                     <>
                       {button(
                         (
                           {
                             assigned: "En approche",
+                            confirmed: "En approche",
                             approaching: "Passager à bord",
                             onboard: "Terminer",
                           } as Row
@@ -497,6 +621,7 @@ export default function App() {
                               status: (
                                 {
                                   assigned: "approaching",
+                                  confirmed: "approaching",
                                   approaching: "onboard",
                                   onboard: "completed",
                                 } as Row
@@ -668,13 +793,22 @@ export default function App() {
                 (session.tenant === m.tenant_id ? "✓ " : "") + m.name,
                 () =>
                   run(async () => {
+                    if (session.push_device_id)
+                      await api(
+                        `/devices/${session.push_device_id}/remove`,
+                        {},
+                      );
                     await SecureStore.deleteItemAsync(cacheKey(session));
                     setMissions([]);
                     setOffers([]);
                     setMessages([]);
                     setGroup("");
                     setConversation("");
-                    const next = { ...session, tenant: m.tenant_id };
+                    const next = {
+                      ...session,
+                      tenant: m.tenant_id,
+                      push_device_id: undefined,
+                    };
                     await saveSession(next);
                     activate(next);
                     await refresh(next);
@@ -689,6 +823,27 @@ export default function App() {
               le système et effacé à la déconnexion.
             </Text>
             {button("Actualiser", () => run(() => refresh()), true, busy)}
+            {button(
+              session.push_device_id
+                ? "Renouveler les notifications"
+                : "Activer les notifications",
+              () => run(enablePush),
+              true,
+              busy || offline,
+            )}
+            {session.push_device_id &&
+              button(
+                "Désactiver les notifications",
+                () =>
+                  run(async () => {
+                    await api(`/devices/${session.push_device_id}/remove`, {});
+                    const next = { ...session, push_device_id: undefined };
+                    await saveSession(next);
+                    activate(next);
+                  }),
+                true,
+                busy || offline,
+              )}
             {button(
               "Déconnexion",
               () =>

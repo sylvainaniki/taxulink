@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as models from "./index";
 import * as extended from "./extended";
 import * as account from "./account";
+import * as pilot from "./pilot";
 const schemas: Record<string, any> = {};
 for (const name of [
   "loginInput",
@@ -20,7 +21,11 @@ for (const name of [
   delete json.$schema;
   schemas[name] = json;
 }
-for (const [name, schema] of Object.entries({ ...extended, ...account })) {
+for (const [name, schema] of Object.entries({
+  ...extended,
+  ...account,
+  ...pilot,
+})) {
   const json = z.toJSONSchema(schema);
   delete json.$schema;
   schemas[name] = json;
@@ -278,6 +283,24 @@ const writes = [
   ["/imports/preview", "importInput"],
   ["/imports/courses", "importInput"],
 ];
+writes.push(
+  ["/locations", "locationInput"],
+  ["/routing/refresh", "routingInput"],
+  ["/absences", "absenceInput"],
+  ["/courses/{id}/transfer-request", "transferInput"],
+  ["/transfers/{id}/decision", "transferDecisionInput"],
+);
+for (const path of [
+  "/routing/status",
+  "/routing/cache",
+  "/absences",
+  "/transfers",
+  "/settings",
+  "/notification-settings",
+])
+  add(path, "get", path);
+for (const path of ["/absences/{id}/cancel", "/devices/{id}/remove"])
+  add(path, "post", path);
 for (const [path, body] of writes) add(path, "post", path, body);
 for (const path of [
   "/network-invitations/{id}/accept",

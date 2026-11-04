@@ -16,6 +16,9 @@ import {
 import { validateAssignment } from "./planning";
 import * as input from "../../../packages/contracts";
 import { operations } from "./modules/operations";
+import { pilotOperations } from "./modules/pilot";
+import type { RoutingProvider } from "./routing";
+import type { PushTransport } from "./deliveries";
 import { accountRoutes } from "./modules/account";
 import { enqueueAccountLink, type AccountMail } from "./mail";
 import {
@@ -35,6 +38,9 @@ export interface Options {
   secureCookies?: boolean;
   mail?: AccountMail;
   requireVerifiedEmail?: boolean;
+  routing?: RoutingProvider;
+  push?: PushTransport;
+  deliveryKey?: string;
 }
 const dummyPassword = passwordHash("dummy-password-never-accepted");
 export async function createApp(
@@ -498,6 +504,22 @@ export async function createApp(
         }
       }
       async function dispatch(): Promise<any> {
+        const pilot = await pilotOperations(
+          q,
+          {
+            path,
+            method: req.method,
+            body: req.body,
+            query: req.query,
+            tenant,
+            user: s.user_id,
+            role,
+            sessionHash: hash(cookie(req)),
+            audit,
+          },
+          options,
+        );
+        if (pilot) return pilot.value;
         const extra = await operations(q, {
           path,
           method: req.method,
@@ -614,6 +636,10 @@ export async function createApp(
               [id, tenant, d.label, d.seats, d.accessible],
             );
             await audit(q, tenant, s.user_id, "vehicle.created", id);
+            await q.query("UPDATE vehicles SET start_location=$1 WHERE id=$2", [
+              d.start_location,
+              id,
+            ]);
             return { id };
           }
           if (path === "/groups") {
@@ -692,6 +718,17 @@ export async function createApp(
               ],
             );
             await audit(q, tenant, s.user_id, "course.created", id);
+            await q.query(
+              "UPDATE courses SET priority=$1,pickup_latest=$2,operational_notes=$3,request_origin=$4,status=$5 WHERE id=$6",
+              [
+                d.priority,
+                d.pickup_latest || null,
+                d.operational_notes,
+                d.request_origin,
+                d.draft ? "draft" : "unassigned",
+                id,
+              ],
+            );
             return { id };
           }
           if (/^\/courses\/[a-f0-9-]+\/assign$/.test(path)) {
@@ -773,10 +810,12 @@ export async function createApp(
             );
             requireThat(c.version === d.version, 409, "PLAN_STALE");
             const allowed: Record<string, string[]> = {
+              draft: ["cancelled"],
               unassigned: ["cancelled"],
-              assigned: ["approaching", "cancelled"],
-              approaching: ["onboard", "cancelled"],
-              onboard: ["completed"],
+              assigned: ["confirmed", "approaching", "cancelled"],
+              confirmed: ["approaching", "cancelled"],
+              approaching: ["onboard", "cancelled", "no_show", "failed"],
+              onboard: ["completed", "failed"],
             };
             requireThat(
               allowed[c.status]?.includes(d.status),
@@ -839,6 +878,7 @@ export async function createApp(
             "PLAN_STALE",
             "INVALID_DECISION",
             "INVALID_TRANSITION",
+            "LOCATION_DENIED",
           ];
           const message = (error as Error).message;
           if (allowed.includes(message))
@@ -846,7 +886,7 @@ export async function createApp(
               .status(
                 message === "NOT_FOUND"
                   ? 404
-                  : message === "ACCESS_DENIED"
+                  : ["ACCESS_DENIED", "LOCATION_DENIED"].includes(message)
                     ? 403
                     : 409,
               )

@@ -599,6 +599,94 @@
             "description": "Limite de tentatives de connexion atteinte"
           }
         }
+      },
+      "post": {
+        "summary": "/locations",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/locationInput"
+              }
+            }
+          }
+        }
       }
     },
     "/drivers": {
@@ -3308,6 +3396,666 @@
         }
       }
     },
+    "/routing/status": {
+      "get": {
+        "summary": "/routing/status",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        }
+      }
+    },
+    "/routing/cache": {
+      "get": {
+        "summary": "/routing/cache",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        }
+      }
+    },
+    "/absences": {
+      "get": {
+        "summary": "/absences",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        }
+      },
+      "post": {
+        "summary": "/absences",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/absenceInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transfers": {
+      "get": {
+        "summary": "/transfers",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        }
+      }
+    },
+    "/settings": {
+      "get": {
+        "summary": "/settings",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        }
+      }
+    },
+    "/notification-settings": {
+      "get": {
+        "summary": "/notification-settings",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        }
+      }
+    },
+    "/absences/{id}/cancel": {
+      "post": {
+        "summary": "/absences/{id}/cancel",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "maxProperties": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices/{id}/remove": {
+      "post": {
+        "summary": "/devices/{id}/remove",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "maxProperties": 0
+              }
+            }
+          }
+        }
+      }
+    },
     "/members/{id}/update": {
       "post": {
         "summary": "/members/{id}/update",
@@ -5201,6 +5949,294 @@
         }
       }
     },
+    "/routing/refresh": {
+      "post": {
+        "summary": "/routing/refresh",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/routingInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{id}/transfer-request": {
+      "post": {
+        "summary": "/courses/{id}/transfer-request",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/transferInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transfers/{id}/decision": {
+      "post": {
+        "summary": "/transfers/{id}/decision",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "mobileBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Tenant-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Résultat confirmé par le serveur",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée ou référence invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session absente ou expirée"
+          },
+          "403": {
+            "description": "Accès, CSRF ou origine refusés"
+          },
+          "404": {
+            "description": "Ressource absente ou invisible"
+          },
+          "409": {
+            "description": "Version périmée, conflit ou clé idempotente réutilisée"
+          },
+          "422": {
+            "description": "Course impossible : SHIFT_CONFLICT, BREAK_CONFLICT, TIME_WINDOW_CONFLICT, RESOURCE_CONFLICT, TRANSFER_CONFLICT, VEHICLE_INCOMPATIBLE ou ROUTE_UNAVAILABLE"
+          },
+          "429": {
+            "description": "Limite de tentatives de connexion atteinte"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/transferDecisionInput"
+              }
+            }
+          }
+        }
+      }
+    },
     "/network-invitations/{id}/accept": {
       "post": {
         "summary": "/network-invitations/{id}/accept",
@@ -6255,9 +7291,15 @@
           "accessible": {
             "default": false,
             "type": "boolean"
+          },
+          "start_location": {
+            "default": "loc-0",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
           }
         },
-        "required": ["label", "seats", "accessible"],
+        "required": ["label", "seats", "accessible", "start_location"],
         "additionalProperties": false
       },
       "driverInput": {
@@ -6369,6 +7411,31 @@
           "accessible": {
             "default": false,
             "type": "boolean"
+          },
+          "priority": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "pickup_latest": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "operational_notes": {
+            "default": "",
+            "type": "string",
+            "maxLength": 500
+          },
+          "request_origin": {
+            "default": "other",
+            "type": "string",
+            "enum": ["phone", "web", "facility", "other"]
+          },
+          "draft": {
+            "default": false,
+            "type": "boolean"
           }
         },
         "required": [
@@ -6379,7 +7446,11 @@
           "appointment_at",
           "arrival_buffer",
           "passengers",
-          "accessible"
+          "accessible",
+          "priority",
+          "operational_notes",
+          "request_origin",
+          "draft"
         ],
         "additionalProperties": false
       },
@@ -6450,7 +7521,15 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["approaching", "onboard", "completed", "cancelled"]
+            "enum": [
+              "confirmed",
+              "approaching",
+              "onboard",
+              "completed",
+              "cancelled",
+              "failed",
+              "no_show"
+            ]
           },
           "version": {
             "type": "integer",
@@ -6638,13 +7717,40 @@
           "status": {
             "type": "string",
             "enum": [
+              "draft",
               "unassigned",
               "assigned",
+              "confirmed",
               "approaching",
               "onboard",
               "completed",
-              "cancelled"
+              "cancelled",
+              "failed",
+              "no_show"
             ]
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "pickup_latest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "operational_notes": {
+            "type": "string"
+          },
+          "request_origin": {
+            "type": "string"
           },
           "version": {
             "type": "integer",
@@ -6756,6 +7862,10 @@
           "passengers",
           "accessible",
           "status",
+          "priority",
+          "pickup_latest",
+          "operational_notes",
+          "request_origin",
           "version",
           "source_course_id",
           "source_tenant_id",
@@ -6820,6 +7930,31 @@
               "accessible": {
                 "default": false,
                 "type": "boolean"
+              },
+              "priority": {
+                "default": 0,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "pickup_latest": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "operational_notes": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
+              },
+              "request_origin": {
+                "default": "other",
+                "type": "string",
+                "enum": ["phone", "web", "facility", "other"]
+              },
+              "draft": {
+                "default": false,
+                "type": "boolean"
               }
             },
             "required": [
@@ -6830,7 +7965,11 @@
               "appointment_at",
               "arrival_buffer",
               "passengers",
-              "accessible"
+              "accessible",
+              "priority",
+              "operational_notes",
+              "request_origin",
+              "draft"
             ],
             "additionalProperties": false
           },
@@ -6918,6 +8057,31 @@
                 "accessible": {
                   "default": false,
                   "type": "boolean"
+                },
+                "priority": {
+                  "default": 0,
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3
+                },
+                "pickup_latest": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "operational_notes": {
+                  "default": "",
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "request_origin": {
+                  "default": "other",
+                  "type": "string",
+                  "enum": ["phone", "web", "facility", "other"]
+                },
+                "draft": {
+                  "default": false,
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -6928,7 +8092,11 @@
                 "appointment_at",
                 "arrival_buffer",
                 "passengers",
-                "accessible"
+                "accessible",
+                "priority",
+                "operational_notes",
+                "request_origin",
+                "draft"
               ],
               "additionalProperties": false
             }
@@ -7436,11 +8604,23 @@
             "default": false,
             "type": "boolean"
           },
+          "start_location": {
+            "default": "loc-0",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
           "active": {
             "type": "boolean"
           }
         },
-        "required": ["label", "seats", "accessible", "active"],
+        "required": [
+          "label",
+          "seats",
+          "accessible",
+          "start_location",
+          "active"
+        ],
         "additionalProperties": false
       },
       "versionInput": {
@@ -7501,6 +8681,137 @@
           }
         },
         "required": ["token", "password"],
+        "additionalProperties": false
+      },
+      "absenceInput": {
+        "type": "object",
+        "properties": {
+          "driver_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "vehicle_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "start_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": ["leave", "illness", "maintenance", "other"]
+          },
+          "acknowledge_conflicts": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": ["start_at", "end_at", "reason", "acknowledge_conflicts"],
+        "additionalProperties": false
+      },
+      "locationInput": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "address": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "sector": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "confirmed": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "label",
+          "address",
+          "sector",
+          "latitude",
+          "longitude",
+          "confirmed"
+        ],
+        "additionalProperties": false
+      },
+      "routingInput": {
+        "type": "object",
+        "properties": {
+          "location_ids": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 40
+            }
+          }
+        },
+        "required": ["location_ids"],
+        "additionalProperties": false
+      },
+      "transferDecisionInput": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["approve", "reject"]
+          },
+          "driver_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "vehicle_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": ["decision"],
+        "additionalProperties": false
+      },
+      "transferInput": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reason": {
+            "type": "string",
+            "enum": ["delay", "breakdown", "illness", "other"]
+          }
+        },
+        "required": ["version", "reason"],
         "additionalProperties": false
       },
       "Error": {

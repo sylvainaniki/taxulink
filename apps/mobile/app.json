@@ -6,7 +6,7 @@
     "scheme": "taxilink",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "plugins": ["expo-secure-store"],
+    "plugins": ["expo-secure-store", "expo-notifications"],
     "android": { "package": "fr.taxilink.demo", "permissions": [] },
     "ios": { "bundleIdentifier": "fr.taxilink.demo", "supportsTablet": false }
   }

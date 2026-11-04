@@ -6,6 +6,9 @@ import {
   type Database,
 } from "./db";
 import { createApp } from "./server";
+import { routingFromEnv } from "./routing";
+import { deliverNotification, pushFromEnv } from "./deliveries";
+import { validMfaKey } from "./mfa";
 import { accountMailFromEnv, deliverAccountMail } from "./mail";
 async function main() {
   const demo = process.env.DEMO_MODE === "true";
@@ -29,6 +32,9 @@ async function main() {
     identity = asRole(db, "taxilink_identity");
   }
   const mail = accountMailFromEnv();
+  const push = pushFromEnv();
+  if (push && !validMfaKey(process.env.MAIL_ENCRYPTION_KEY))
+    throw new Error("PUSH_REQUIRES_MAIL_ENCRYPTION_KEY");
   const requireVerifiedEmail = process.env.REQUIRE_VERIFIED_EMAIL === "true";
   if (requireVerifiedEmail && !mail)
     throw new Error("Verified email policy requires configured account mail");
@@ -40,25 +46,34 @@ async function main() {
       webOrigin: process.env.WEB_ORIGIN,
       secureCookies: process.env.COOKIE_SECURE === "true",
       mail,
+      routing: routingFromEnv(),
+      push,
+      deliveryKey: process.env.MAIL_ENCRYPTION_KEY,
       requireVerifiedEmail,
     },
     identity,
   );
   await app.listen(Number(process.env.PORT || 4000), "0.0.0.0");
   let delivering = false;
-  const mailTimer = mail
-    ? setInterval(async () => {
-        if (delivering) return;
-        delivering = true;
-        try {
-          await deliverAccountMail(identity, mail);
-        } catch {
-          console.warn("Account email queue unavailable.");
-        } finally {
-          delivering = false;
-        }
-      }, 2000)
-    : undefined;
+  const mailTimer =
+    mail || push
+      ? setInterval(async () => {
+          if (delivering) return;
+          delivering = true;
+          try {
+            if (mail) await deliverAccountMail(identity, mail);
+            await deliverNotification(identity, {
+              mail,
+              push,
+              key: process.env.MAIL_ENCRYPTION_KEY,
+            });
+          } catch {
+            console.warn("Account email queue unavailable.");
+          } finally {
+            delivering = false;
+          }
+        }, 2000)
+      : undefined;
   mailTimer?.unref();
   const close = async () => {
     if (mailTimer) clearInterval(mailTimer);

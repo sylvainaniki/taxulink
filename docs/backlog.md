@@ -17,3 +17,12 @@ Les tests et la CI sont les critères de livraison de cet incrément. Une foncti
 ## Extensions V2 hors démonstration
 
 Solveur avancé/pooling, autonomie EV, portail patients/établissements, abonnements et facturation, intégrations d’un éditeur CPAM certifié uniquement sur API contractuelle. Aucun de ces services ne doit être simulé comme opérationnel.
+
+## Incrément du 4 novembre 2026
+
+- Adresses privées avec coordonnées confirmées, matrice OSRM configurable et cache avec expiration ; les secteurs publics des offres ne révèlent pas les coordonnées privées. Sans prestataire configuré, aucune disponibilité de routage réel n’est annoncée.
+- Congés, maladie et entretien des véhicules : blocage des affectations incompatibles, avertissement explicite pour les engagements existants, annulation d’indisponibilité depuis Administration.
+- Demandes de transfert après panne/retard, décision du régulateur, réattribution atomique et conservation de l’historique. Une mission commencée reste figée.
+- Proposition par recherche dans les fenêtres horaires, priorités et replanification, sans déplacer les missions commencées ; application versionnée et atomique.
+- File de notifications email/Expo, reprises temporisées et reçus Expo, appareils liés à une session et révocables. Configuration externe et recette sur téléphone restent nécessaires. Les préférences email et appareils sont accessibles depuis Notifications.
+- Préparation documentaire fictive : chiffrement, schéma privé, nettoyage des images/PDF et interface antivirus. **Les routes documentaires restent désactivées**, y compris pour les administrateurs ; ce code ne constitue pas une activation du module.

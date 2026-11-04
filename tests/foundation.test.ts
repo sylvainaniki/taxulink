@@ -1895,3 +1895,509 @@ test("recovery cannot bypass MFA and consumes a single-use factor while revoking
     await f.service.close();
   }
 });
+
+async function pilotFixture(options: any = {}) {
+  const service = await createApp(
+    db,
+    { demo: true, authLimit: 1000, ...options },
+    asRole(db, "taxilink_identity"),
+  );
+  let cookie = "",
+    csrf = "",
+    tenant = "";
+  async function call(path: string, body?: any) {
+    const r = await inject(service.getHttpAdapter().getInstance(), {
+      method: body === undefined ? "GET" : "POST",
+      url: "/api/v1" + path,
+      headers: {
+        "content-type": "application/json",
+        cookie,
+        "x-csrf-token": csrf,
+        "x-tenant-id": tenant,
+        "idempotency-key": randomUUID(),
+      },
+      ...(body === undefined ? {} : { payload: body }),
+    });
+    return { status: r.statusCode, body: r.json(), headers: r.headers };
+  }
+  const created = await call("/auth/register", {
+    email: `pilot-${randomUUID()}@example.test`,
+    password,
+    company: "Fictive pilot",
+  });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  cookie = String(created.headers["set-cookie"]).split(";")[0];
+  csrf = created.body.csrf;
+  tenant = created.body.tenant_id;
+  const me = (await call("/auth/me")).body;
+  async function driverAt(location = "loc-0", name = "Fictive pilot driver") {
+    const r = await call("/drivers", {
+      name,
+      shift_start: "2026-11-04T06:00:00+01:00",
+      shift_end: "2026-11-04T20:00:00+01:00",
+      start_location: location,
+      end_location: location,
+      breaks: [],
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    return r.body.id as string;
+  }
+  async function vehicleAt(location = "loc-0") {
+    const r = await call("/vehicles", {
+      label: "Fictive pilot vehicle",
+      seats: 4,
+      accessible: true,
+      start_location: location,
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    return r.body.id as string;
+  }
+  async function job(extra: any = {}) {
+    const r = await call("/courses", course(extra));
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    return r.body.id as string;
+  }
+  return { service, call, tenant, user: me.id, driverAt, vehicleAt, job };
+}
+const mockRouting = {
+  name: "test-routed-fixture",
+  matrix: async (points: any[]) =>
+    points.map((_, i) =>
+      points.map((_, j) => ({
+        minutes: i === j ? 0 : 20,
+        distance_m: i === j ? 0 : 10000,
+      })),
+    ),
+};
+async function privateLocation(
+  f: Awaited<ReturnType<typeof pilotFixture>>,
+  label: string,
+) {
+  const r = await f.call("/locations", {
+    label,
+    address: "ADRESSE FICTIVE PRIVÉE " + label,
+    sector: "Secteur fictif 75",
+    latitude: 48.86,
+    longitude: 2.35,
+    confirmed: true,
+  });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  return r.body.id as string;
+}
+
+test("private locations, routed matrices and marketplace sectors preserve address isolation until confirmation", async () => {
+  const a = await pilotFixture({ routing: mockRouting }),
+    b = await pilotFixture({ routing: mockRouting });
+  try {
+    const origin = await privateLocation(a, "Origine"),
+      destination = await privateLocation(a, "Destination"),
+      depot = await privateLocation(b, "Dépôt");
+    const own = (await b.call("/locations")).body;
+    assert.ok(!own.some((p: any) => p.id === origin));
+    assert.equal(
+      (await b.call("/courses", course({ origin, destination }))).body.code,
+      "LOCATION_DENIED",
+    );
+    assert.equal(
+      (
+        await a.call("/routing/refresh", {
+          location_ids: [origin, destination],
+        })
+      ).status,
+      201,
+    );
+    assert.equal(
+      (
+        await b.call("/routing/refresh", {
+          location_ids: [origin, destination],
+        })
+      ).status,
+      404,
+    );
+    const gid = (await a.call("/groups", { name: "Fictive routing network" }))
+      .body.id;
+    await a.call(`/groups/${gid}/invite`, { tenant_id: b.tenant });
+    const invitation = (await b.call("/network-invitations")).body[0];
+    await b.call(`/network-invitations/${invitation.id}/accept`, {});
+    const cid = await a.job({ origin, destination }),
+      offered = await a.call("/offers", {
+        course_id: cid,
+        group_id: gid,
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      });
+    assert.equal(offered.status, 201, JSON.stringify(offered.body));
+    const dto = (await b.call("/offers")).body.find(
+      (o: any) => o.id === offered.body.id,
+    );
+    assert.equal(dto.origin_label, "Secteur fictif 75");
+    assert.ok(!JSON.stringify(dto).includes("ADRESSE"));
+    const driver = await b.driverAt(depot),
+      vehicle = await b.vehicleAt(depot);
+    const claimed = await b.call(`/offers/${offered.body.id}/claim`, {
+      driver_id: driver,
+      vehicle_id: vehicle,
+    });
+    assert.equal(claimed.status, 201, JSON.stringify(claimed.body));
+    assert.ok(
+      !(await b.call("/locations")).body.some((p: any) => p.id === origin),
+    );
+    assert.equal(
+      (
+        await a.call(`/offers/${offered.body.id}/decision`, {
+          decision: "approve",
+        })
+      ).status,
+      201,
+    );
+    assert.ok(
+      (await b.call("/locations")).body.some((p: any) => p.id === origin),
+    );
+  } finally {
+    await a.service.close();
+    await b.service.close();
+  }
+});
+
+test("driver leave and vehicle maintenance block assignments, require acknowledgment for commitments and cancel explicitly", async () => {
+  const f = await pilotFixture();
+  try {
+    const did = await f.driverAt(),
+      vid = await f.vehicleAt(),
+      cid = await f.job();
+    const absent = await f.call("/absences", {
+      driver_id: did,
+      start_at: "2026-11-04T08:00:00+01:00",
+      end_at: "2026-11-04T11:00:00+01:00",
+      reason: "leave",
+    });
+    assert.equal(absent.status, 201, JSON.stringify(absent.body));
+    assert.equal(
+      (
+        await f.call(`/courses/${cid}/assign`, {
+          driver_id: did,
+          vehicle_id: vid,
+          version: 1,
+        })
+      ).body.code,
+      "RESOURCE_UNAVAILABLE",
+    );
+    await f.call(`/absences/${absent.body.id}/cancel`, {});
+    assert.equal(
+      (
+        await f.call(`/courses/${cid}/assign`, {
+          driver_id: did,
+          vehicle_id: vid,
+          version: 1,
+        })
+      ).status,
+      201,
+    );
+    const payload = {
+      vehicle_id: vid,
+      start_at: "2026-11-04T08:00:00+01:00",
+      end_at: "2026-11-04T11:00:00+01:00",
+      reason: "maintenance",
+    };
+    assert.equal(
+      (await f.call("/absences", payload)).body.code,
+      "RESOURCE_COMMITTED",
+    );
+    assert.equal(
+      (await f.call("/absences", { ...payload, acknowledge_conflicts: true }))
+        .status,
+      201,
+    );
+    assert.ok(
+      (await f.call("/alerts")).body.some(
+        (v: any) => v.kind === "resource_unavailable",
+      ),
+    );
+    assert.equal((await f.call(`/courses/${cid}`)).body.driver_id, did);
+  } finally {
+    await f.service.close();
+  }
+});
+
+test("transfer approval is atomic, leaves the old assignment after rejection or infeasibility and freezes started missions", async () => {
+  const f = await pilotFixture();
+  try {
+    const did = await f.driverAt(),
+      vid = await f.vehicleAt(),
+      replacement = await f.driverAt(),
+      replacementVehicle = await f.vehicleAt(),
+      cid = await f.job();
+    await f.call(`/courses/${cid}/assign`, {
+      driver_id: did,
+      vehicle_id: vid,
+      version: 1,
+    });
+    const request = (
+      await f.call(`/courses/${cid}/transfer-request`, {
+        version: 2,
+        reason: "breakdown",
+      })
+    ).body;
+    assert.equal((await f.call(`/courses/${cid}`)).body.driver_id, did);
+    assert.equal(
+      (
+        await f.call(`/transfers/${request.id}/decision`, {
+          decision: "approve",
+          driver_id: replacement,
+          vehicle_id: vid,
+        })
+      ).status,
+      201,
+    );
+    const updated = (await f.call(`/courses/${cid}`)).body;
+    assert.equal(updated.driver_id, replacement);
+    assert.equal(
+      (
+        await f.call(`/transfers/${request.id}/decision`, {
+          decision: "reject",
+        })
+      ).status,
+      409,
+    );
+    const second = (
+      await f.call(`/courses/${cid}/transfer-request`, {
+        version: updated.version,
+        reason: "other",
+      })
+    ).body;
+    await f.call("/absences", {
+      driver_id: did,
+      start_at: "2026-11-04T06:00:00+01:00",
+      end_at: "2026-11-04T20:00:00+01:00",
+      reason: "leave",
+    });
+    assert.equal(
+      (
+        await f.call(`/transfers/${second.id}/decision`, {
+          decision: "approve",
+          driver_id: did,
+          vehicle_id: replacementVehicle,
+        })
+      ).body.code,
+      "RESOURCE_UNAVAILABLE",
+    );
+    assert.equal((await f.call(`/courses/${cid}`)).body.driver_id, replacement);
+    await f.call(`/transfers/${second.id}/decision`, { decision: "reject" });
+    await f.call(`/courses/${cid}/status`, {
+      status: "approaching",
+      version: updated.version,
+    });
+    assert.equal(
+      (
+        await f.call(`/courses/${cid}/transfer-request`, {
+          version: updated.version + 1,
+          reason: "delay",
+        })
+      ).body.code,
+      "COURSE_FROZEN",
+    );
+  } finally {
+    await f.service.close();
+  }
+});
+
+test("draft activation, priorities, pickup windows, confirmation and no-show have explicit authorized transitions", async () => {
+  const f = await pilotFixture();
+  try {
+    const cid = await f.job({
+        draft: true,
+        priority: 3,
+        pickup_latest: "2026-11-04T09:10:00+01:00",
+        operational_notes: "Entrée fictive B",
+        request_origin: "facility",
+      }),
+      did = await f.driverAt(),
+      vid = await f.vehicleAt();
+    assert.equal(
+      (
+        await f.call(`/courses/${cid}/assign`, {
+          driver_id: did,
+          vehicle_id: vid,
+          version: 1,
+        })
+      ).status,
+      409,
+    );
+    await f.call(`/courses/${cid}/activate`, { version: 1 });
+    await f.call(`/courses/${cid}/assign`, {
+      driver_id: did,
+      vehicle_id: vid,
+      version: 2,
+    });
+    assert.equal(
+      (
+        await f.call(`/courses/${cid}/status`, {
+          status: "confirmed",
+          version: 3,
+        })
+      ).status,
+      201,
+    );
+    await f.call(`/courses/${cid}/status`, {
+      status: "approaching",
+      version: 4,
+    });
+    assert.equal(
+      (
+        await f.call(`/courses/${cid}/status`, {
+          status: "no_show",
+          version: 5,
+        })
+      ).status,
+      201,
+    );
+    const actual = (await f.call(`/courses/${cid}`)).body;
+    assert.equal(actual.priority, 3);
+    assert.equal(actual.status, "no_show");
+    assert.equal(actual.operational_notes, "Entrée fictive B");
+  } finally {
+    await f.service.close();
+  }
+});
+
+test("time-window optimizer proposes without mutation, applies atomically and keeps begun missions frozen", async () => {
+  const f = await pilotFixture();
+  try {
+    const did = await f.driverAt(),
+      vid = await f.vehicleAt();
+    await f.driverAt();
+    await f.vehicleAt();
+    const old = await f.job({
+      pickup_at: "2026-11-04T08:00:00+01:00",
+      appointment_at: "2026-11-04T09:00:00+01:00",
+    });
+    await f.call(`/courses/${old}/assign`, {
+      driver_id: did,
+      vehicle_id: vid,
+      version: 1,
+    });
+    await f.call(`/courses/${old}/status`, {
+      status: "approaching",
+      version: 2,
+    });
+    await f.job({
+      pickup_at: "2026-11-04T10:00:00+01:00",
+      appointment_at: "2026-11-04T11:00:00+01:00",
+      priority: 2,
+    });
+    const plan = await f.call("/plans/propose", {
+      date: "2026-11-04",
+      strategy: "search",
+      replan: true,
+      max_seconds: 2,
+    });
+    assert.equal(plan.status, 201, JSON.stringify(plan.body));
+    assert.equal(plan.body.algorithm, "time-window-search-v1");
+    assert.ok(!plan.body.assigned.some((v: any) => v.course_id === old));
+    assert.equal(
+      (await f.call("/courses")).body.filter(
+        (v: any) => v.status === "unassigned",
+      ).length,
+      1,
+    );
+    const applied = await f.call(`/plans/${plan.body.id}/apply`, {});
+    assert.equal(applied.status, 201, JSON.stringify(applied.body));
+    assert.equal((await f.call(`/courses/${old}`)).body.status, "approaching");
+    assert.equal(
+      (await f.call(`/plans/${plan.body.id}/apply`, {})).status,
+      409,
+    );
+  } finally {
+    await f.service.close();
+  }
+});
+
+test("push devices are private, delivery retries and revoked devices cannot receive queued events", async () => {
+  const { deliverNotification } = await import("../apps/api/src/deliveries.js");
+  const key = "ab".repeat(32);
+  let calls = 0;
+  const push = {
+    send: async () => {
+      calls++;
+      if (calls === 1) throw new Error("temporary");
+      return { ticket: "synthetic-ticket" };
+    },
+    receipt: async () => "ok" as const,
+  };
+  const f = await pilotFixture({ push, deliveryKey: key });
+  const other = await pilotFixture({ push, deliveryKey: key });
+  try {
+    const token = `ExpoPushToken[synthetic_${randomUUID().replaceAll("-", "")}]`;
+    const registered = await f.call("/devices", { token, platform: "android" });
+    assert.equal(registered.status, 201, JSON.stringify(registered.body));
+    assert.equal(
+      (await other.call("/devices", { token, platform: "android" })).status,
+      403,
+    );
+    assert.deepEqual(
+      (await other.call("/notification-settings")).body.devices,
+      [],
+    );
+    const settings = (await f.call("/notification-settings")).body;
+    assert.equal(settings.devices.length, 1);
+    assert.ok(!JSON.stringify(settings).includes(token));
+    const notification = randomUUID();
+    await db.query(
+      "INSERT INTO notifications(id,tenant_id,user_id,kind,object_id) VALUES($1,$2,$3,'test.synthetic',$4)",
+      [notification, f.tenant, f.user, randomUUID()],
+    );
+    const identity = asRole(db, "taxilink_identity");
+    await deliverNotification(identity, { push, key });
+    let job = (
+      await db.query(
+        "SELECT * FROM notification_deliveries WHERE notification_id=$1",
+        [notification],
+      )
+    ).rows[0];
+    assert.equal(job.attempts, 1);
+    assert.equal(job.status, "pending");
+    await db.query(
+      "UPDATE notification_deliveries SET next_attempt=now()-interval '1 minute' WHERE id=$1",
+      [job.id],
+    );
+    await deliverNotification(identity, { push, key });
+    job = (
+      await db.query("SELECT * FROM notification_deliveries WHERE id=$1", [
+        job.id,
+      ])
+    ).rows[0];
+    assert.equal(job.status, "receipt");
+    await db.query(
+      "UPDATE notification_deliveries SET next_attempt=now()-interval '1 minute' WHERE id=$1",
+      [job.id],
+    );
+    await deliverNotification(identity, { push, key });
+    assert.equal(
+      (
+        await db.query(
+          "SELECT status FROM notification_deliveries WHERE id=$1",
+          [job.id],
+        )
+      ).rows[0].status,
+      "sent",
+    );
+    await other.call(`/devices/${registered.body.id}/remove`, {});
+    assert.equal(
+      (await f.call("/notification-settings")).body.devices.length,
+      1,
+    );
+    await db.query(
+      "INSERT INTO notifications(id,tenant_id,user_id,kind,object_id) VALUES($1,$2,$3,'test.synthetic',$4)",
+      [randomUUID(), f.tenant, f.user, randomUUID()],
+    );
+    await f.call(`/devices/${registered.body.id}/remove`, {});
+    assert.equal(await deliverNotification(identity, { push, key }), false);
+    assert.equal(
+      (await f.call("/notification-settings")).body.devices.length,
+      0,
+    );
+    assert.equal(calls, 2);
+  } finally {
+    await f.service.close();
+    await other.service.close();
+  }
+});

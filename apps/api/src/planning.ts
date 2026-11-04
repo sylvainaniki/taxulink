@@ -5,12 +5,13 @@ export const overlaps = (a: number, b: number, c: number, d: number) =>
   a < d && c < b;
 export async function route(q: Sql, from: string, to: string) {
   const r = (
-    await q.query(
-      "SELECT minutes FROM routes WHERE origin=$1 AND destination=$2 AND expires_at>now()",
-      [from, to],
-    )
+    await q.query("SELECT get_route_minutes($1,$2) AS minutes", [from, to])
   ).rows[0];
-  requireThat(r, 422, "ROUTE_UNAVAILABLE");
+  requireThat(
+    r?.minutes !== null && r?.minutes !== undefined,
+    422,
+    "ROUTE_UNAVAILABLE",
+  );
   return Number(r.minutes) * 60000;
 }
 export async function validateAssignment(
@@ -105,6 +106,42 @@ export async function validateAssignment(
   const limit = next ? ms(next.start_at) : ms(driver.shift_end);
   const onward = await route(q, course.destination, to);
   requireThat(end + onward <= limit, 422, "TRANSFER_CONFLICT");
+  const absences = (
+    await q.query(
+      "SELECT start_at,end_at FROM resource_absences WHERE active AND (driver_id=$1 OR vehicle_id=$2)",
+      [driver.id, vehicle.id],
+    )
+  ).rows;
+  requireThat(
+    !absences.some((p) =>
+      overlaps(
+        start - Math.max(transfer, vehicleTransfer),
+        end + onward,
+        ms(p.start_at),
+        ms(p.end_at),
+      ),
+    ),
+    422,
+    "RESOURCE_UNAVAILABLE",
+  );
+  requireThat(
+    !course.pickup_latest || start <= ms(course.pickup_latest),
+    422,
+    "PICKUP_WINDOW_CONFLICT",
+  );
+  const policy = (await q.query("SELECT * FROM company_settings")).rows[0];
+  if (policy?.ads_rules_enabled) {
+    const sector = (
+      await q.query("SELECT sector FROM locations WHERE id=$1", [course.origin])
+    ).rows[0]?.sector;
+    requireThat(
+      policy.regulatory_rules_confirmed &&
+        vehicle.ads_code &&
+        vehicle.authorized_sectors?.includes(sector),
+      422,
+      "REGULATORY_RULE",
+    );
+  }
   // Conservative: transfers take place immediately before pickup / after drop-off.
   for (const pause of driver.breaks) {
     if (

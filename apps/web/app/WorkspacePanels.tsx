@@ -117,9 +117,13 @@ export default function WorkspacePanels(p: Props) {
         "/contacts",
       ],
       Statistiques: ["/analytics"],
-      Notifications: ["/notifications", ...(manage ? ["/alerts"] : [])],
+      Notifications: [
+        "/notifications",
+        "/notification-settings",
+        ...(manage ? ["/alerts"] : []),
+      ],
       Administration: admin
-        ? ["/members", "/company", "/shifts"]
+        ? ["/members", "/company", "/shifts", "/absences"]
         : ["/company"],
       Compte: ["/company", "/auth/me"],
       Optimisation: ["/plans"],
@@ -1422,6 +1426,61 @@ export default function WorkspacePanels(p: Props) {
       {p.tab === "Notifications" && (
         <>
           <div className="panel padded">
+            <h2>Canaux de notification</h2>
+            <p>
+              Les messages externes ne contiennent aucune information passager.
+            </p>
+            <button
+              className="outline"
+              disabled={
+                busy ||
+                (!data["/notification-settings"]?.email_available &&
+                  !data["/notification-settings"]?.email_enabled)
+              }
+              onClick={() =>
+                run(() =>
+                  post("/notification-settings", {
+                    email_enabled:
+                      !data["/notification-settings"]?.email_enabled,
+                  }),
+                )
+              }
+            >
+              {data["/notification-settings"]?.email_enabled
+                ? "Désactiver les emails"
+                : "Activer les emails"}
+            </button>
+            {!data["/notification-settings"]?.email_available && (
+              <p className="hint">
+                L’envoi d’email est indisponible sur cette installation.
+              </p>
+            )}
+            <h3>Appareils mobiles autorisés</h3>
+            {(data["/notification-settings"]?.devices || []).map(
+              (device: Row) => (
+                <article className="invite-row" key={device.id}>
+                  <span>
+                    {device.platform} · expire le {when(device.expires_at)}
+                  </span>
+                  <button
+                    className="outline"
+                    disabled={busy}
+                    onClick={() =>
+                      run(
+                        () => post(`/devices/${device.id}/remove`),
+                        "Appareil révoqué.",
+                      )
+                    }
+                  >
+                    Révoquer
+                  </button>
+                </article>
+              ),
+            )}
+            <p className="hint">
+              Activez les notifications mobiles depuis l’application sur votre
+              téléphone.
+            </p>
             <h2>Notifications personnelles</h2>
             {(data["/notifications"] || []).map((n: Row) => (
               <article className="invite-row" key={n.id}>
@@ -1461,7 +1520,11 @@ export default function WorkspacePanels(p: Props) {
               <h2>Alertes opérationnelles</h2>
               {(data["/alerts"] || []).map((a: Row) => (
                 <article className="invite-row" key={a.id}>
-                  <strong>Retard signalé : +{a.minutes} min</strong>
+                  <strong>
+                    {a.kind === "resource_unavailable"
+                      ? "Ressource indisponible"
+                      : `Retard signalé : +${a.minutes} min`}
+                  </strong>
                   <small>
                     {p.courses.find((c) => c.id === a.course_id)?.reference ||
                       "Mission d’une autre date"}
@@ -1491,6 +1554,113 @@ export default function WorkspacePanels(p: Props) {
       {p.tab === "Administration" && (
         <>
           <div className="panel padded">
+            <h2>Indisponibilités</h2>
+            <form
+              onSubmit={submit(
+                (d) =>
+                  post("/absences", {
+                    ...(d.resource.startsWith("driver:")
+                      ? { driver_id: d.resource.slice(7) }
+                      : { vehicle_id: d.resource.slice(8) }),
+                    start_at: parisDateTime(d.start_day, d.start),
+                    end_at: parisDateTime(d.end_day, d.end),
+                    reason: d.reason,
+                    acknowledge_conflicts: d.acknowledge === "on",
+                  }),
+                "Indisponibilité enregistrée. Consultez les alertes pour les missions concernées.",
+              )}
+            >
+              <div className="form-grid">
+                {field(
+                  "Ressource",
+                  <select name="resource" required>
+                    {p.drivers.map((d) => (
+                      <option key={d.id} value={"driver:" + d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                    {p.vehicles.map((v) => (
+                      <option key={v.id} value={"vehicle:" + v.id}>
+                        {v.label}
+                      </option>
+                    ))}
+                  </select>,
+                )}
+                {field(
+                  "Premier jour",
+                  <input
+                    name="start_day"
+                    type="date"
+                    defaultValue={p.date}
+                    required
+                  />,
+                )}
+                {field(
+                  "Début",
+                  <input
+                    name="start"
+                    type="time"
+                    defaultValue="06:00"
+                    required
+                  />,
+                )}
+                {field(
+                  "Dernier jour",
+                  <input
+                    name="end_day"
+                    type="date"
+                    defaultValue={p.date}
+                    required
+                  />,
+                )}
+                {field(
+                  "Fin",
+                  <input
+                    name="end"
+                    type="time"
+                    defaultValue="19:00"
+                    required
+                  />,
+                )}
+                {field(
+                  "Motif",
+                  <select name="reason">
+                    <option value="leave">Congé</option>
+                    <option value="illness">Maladie</option>
+                    <option value="maintenance">Entretien / panne</option>
+                    <option value="other">Autre</option>
+                  </select>,
+                )}
+              </div>
+              <label className="check">
+                <input type="checkbox" name="acknowledge" />
+                Créer les alertes si des missions sont déjà attribuées. Leur
+                réattribution reste nécessaire.
+              </label>
+              <button disabled={busy}>Enregistrer l’indisponibilité</button>
+            </form>
+            {(data["/absences"] || []).map((a: Row) => (
+              <article className="invite-row" key={a.id}>
+                <span>
+                  {p.drivers.find((d) => d.id === a.driver_id)?.name ||
+                    p.vehicles.find((v) => v.id === a.vehicle_id)?.label ||
+                    "Ressource"}{" "}
+                  · {when(a.start_at)} → {when(a.end_at)}
+                </span>
+                <button
+                  className="outline"
+                  disabled={busy}
+                  onClick={() =>
+                    run(
+                      () => post(`/absences/${a.id}/cancel`),
+                      "Indisponibilité annulée.",
+                    )
+                  }
+                >
+                  Annuler l’indisponibilité
+                </button>
+              </article>
+            ))}
             <h2>Membres et droits</h2>
             {(data["/members"] || []).map((m: Row) => (
               <form

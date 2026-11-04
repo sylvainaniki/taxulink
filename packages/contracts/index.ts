@@ -28,6 +28,7 @@ export const vehicleInput = z
     label: z.string().trim().min(1).max(60),
     seats: z.number().int().min(1).max(8),
     accessible: z.boolean().default(false),
+    start_location: z.string().min(1).max(40).default("loc-0"),
   })
   .strict();
 export const driverInput = z
@@ -68,11 +69,25 @@ export const courseInput = z
     arrival_buffer: z.number().int().min(0).max(120).default(15),
     passengers: z.number().int().min(1).max(8),
     accessible: z.boolean().default(false),
+    priority: z.number().int().min(0).max(3).default(0),
+    pickup_latest: timestamp.optional(),
+    operational_notes: z.string().max(500).default(""),
+    request_origin: z
+      .enum(["phone", "web", "facility", "other"])
+      .default("other"),
+    draft: z.boolean().default(false),
   })
   .strict()
   .refine((v) => Date.parse(v.appointment_at) > Date.parse(v.pickup_at), {
     message: "TIME_WINDOW_INVALID",
-  });
+  })
+  .refine(
+    (v) =>
+      !v.pickup_latest ||
+      (Date.parse(v.pickup_latest) >= Date.parse(v.pickup_at) &&
+        Date.parse(v.pickup_latest) < Date.parse(v.appointment_at)),
+    { message: "PICKUP_WINDOW_INVALID" },
+  );
 export const assignmentInput = z
   .object({
     driver_id: uuid,
@@ -94,7 +109,15 @@ export const groupInput = z
   .strict();
 export const statusInput = z
   .object({
-    status: z.enum(["approaching", "onboard", "completed", "cancelled"]),
+    status: z.enum([
+      "confirmed",
+      "approaching",
+      "onboard",
+      "completed",
+      "cancelled",
+      "failed",
+      "no_show",
+    ]),
     version: z.number().int().positive(),
   })
   .strict();

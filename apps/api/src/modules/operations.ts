@@ -13,13 +13,14 @@ export interface Context {
   tenant: string;
   user: string;
   role: string;
+  sessionHash?: string;
   audit: (q: Sql, t: string, u: string, a: string, id: string) => Promise<void>;
 }
 const objectId = (path: string) => types.uuid.parse(path.split("/")[2]);
 import { contactInput } from "../../../../packages/contracts/extended";
 const read = (q: Sql, sql: string, params?: any[]) =>
   q.query(sql, params).then((r) => r.rows);
-async function snapshot(q: Sql) {
+export async function snapshot(q: Sql) {
   const data = [];
   for (const table of [
     "courses",
@@ -28,8 +29,15 @@ async function snapshot(q: Sql) {
     "assignments",
     "driver_shifts",
     "resource_holds",
+    "resource_absences",
+    "company_settings",
   ])
-    data.push(await read(q, `SELECT * FROM ${table} ORDER BY id`));
+    data.push(
+      await read(
+        q,
+        `SELECT * FROM ${table} ORDER BY ${table === "company_settings" ? "tenant_id" : "id"}`,
+      ),
+    );
   data.push(await read(q, "SELECT * FROM routes ORDER BY origin,destination"));
   data.push(
     await read(
@@ -45,7 +53,7 @@ async function resources(q: Sql) {
     vehicles: await read(q, "SELECT * FROM vehicles WHERE active ORDER BY id"),
   };
 }
-async function assign(
+export async function assign(
   q: Sql,
   tenant: string,
   c: Row,
@@ -654,7 +662,7 @@ export async function operations(
     requireThat(old, 404, "NOT_FOUND");
     requireThat(old.version === d.version, 409, "PLAN_STALE");
     requireThat(
-      old.status === "unassigned" &&
+      ["unassigned", "draft"].includes(old.status) &&
         !old.source_course_id &&
         !(await read(q, "SELECT course_has_live_offer($1) AS live", [id]))[0]
           .live,
@@ -690,6 +698,16 @@ export async function operations(
       ],
     );
     await audit("course.updated", id);
+    await q.query(
+      "UPDATE courses SET priority=$1,pickup_latest=$2,operational_notes=$3,request_origin=$4 WHERE id=$5",
+      [
+        v.priority,
+        v.pickup_latest || null,
+        v.operational_notes,
+        v.request_origin,
+        id,
+      ],
+    );
     return value({ id, version: d.version + 1 });
   }
   if (path === "/contacts") {
